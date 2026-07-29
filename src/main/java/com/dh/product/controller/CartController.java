@@ -79,6 +79,14 @@ public class CartController {
         return ResponseEntity.ok(cartService.removeItem(cartId, productId));
     }
 
+    @DeleteMapping
+    public ResponseEntity<Void> clear(@CookieValue(name = CART_COOKIE, required = false) String cartId) {
+        if (cartId != null) {
+            cartService.clear(cartId);
+        }
+        return ResponseEntity.noContent().build();
+    }
+
     private String newCartId() {
         return UUID.randomUUID().toString();
     }

@@ -68,6 +68,10 @@ public class CartService {
         return toResponse(items);
     }
 
+    public void clear(String cartId) {
+        redisTemplate.delete(CART_KEY_PREFIX + cartId);
+    }
+
     private Map<Long, Integer> readItems(String cartId) {
         String json = redisTemplate.opsForValue().get(CART_KEY_PREFIX + cartId);
         if (json == null) {
