@@ -25,16 +25,18 @@ import com.nimbusds.jwt.SignedJWT;
 public class AdminJwtVerifier {
 
     // Keycloak이 내부 클러스터 URL로 요청받아도 항상 공개 URL을 issuer로 찍는다 (admin.front에서도 동일하게 확인됨)
-    private static final String EXPECTED_ISSUER = "https://keycloak.leedohyun.com/realms/staff";
-
+    private final String expectedIssuer;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final Map<String, RSAKey> keyCache = new ConcurrentHashMap<>();
     private final String jwksUri;
 
     public AdminJwtVerifier(
             @Value("${admin.staff-realm-url:http://keycloak-service.keycloak.svc.cluster.local/realms/staff}")
-            String staffRealmUrl) {
+            String staffRealmUrl,
+            @Value("${admin.staff-realm-issuer:https://keycloak.posselect.com/realms/staff}")
+            String expectedIssuer) {
         this.jwksUri = staffRealmUrl + "/protocol/openid-connect/certs";
+        this.expectedIssuer = expectedIssuer;
     }
 
     /** 유효하면 email 클레임을, 아니면 null을 반환한다. */
@@ -52,7 +54,7 @@ public class AdminJwtVerifier {
             if (claims.getExpirationTime() == null || claims.getExpirationTime().before(new Date())) {
                 return null;
             }
-            if (!EXPECTED_ISSUER.equals(claims.getIssuer())) {
+            if (!expectedIssuer.equals(claims.getIssuer())) {
                 return null;
             }
             return claims.getStringClaim("email");
