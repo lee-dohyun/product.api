@@ -34,10 +34,25 @@ public class ProductService {
         this.categoryRepository = categoryRepository;
     }
 
-    public List<ProductSummaryResponse> listProducts() {
-        return productRepository.findAll().stream()
+    public List<ProductSummaryResponse> listProducts(Long categoryId, String q) {
+        List<Product> products;
+        boolean hasCategory = categoryId != null;
+        boolean hasQuery = q != null && !q.isBlank();
+
+        if (hasCategory && hasQuery) {
+            products = productRepository.findByCategoryIdAndNameContainingIgnoreCase(categoryId, q);
+        } else if (hasCategory) {
+            products = productRepository.findByCategoryId(categoryId);
+        } else if (hasQuery) {
+            products = productRepository.findByNameContainingIgnoreCase(q);
+        } else {
+            products = productRepository.findAll();
+        }
+
+        return products.stream()
                 .map(p -> new ProductSummaryResponse(
                         p.getId(),
+                        p.getCategory().getId(),
                         p.getName(),
                         p.getPrice(),
                         p.getStockQuantity(),

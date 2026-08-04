@@ -34,3 +34,6 @@ management:
 
 admin:
   staff-realm-url: ${STAFF_REALM_URL:http://keycloak-service.keycloak.svc.cluster.local/realms/staff}
+
+app:
+  cors-allowed-origin-pattern: ${CORS_ALLOWED_ORIGIN_PATTERN:https://*.posselect.com}

@@ -33,6 +33,7 @@ public class ProductDtos {
 
     public record ProductSummaryResponse(
             Long id,
+            Long categoryId,
             String name,
             BigDecimal price,
             Integer stockQuantity,

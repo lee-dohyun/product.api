@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
@@ -32,8 +33,10 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductSummaryResponse> list() {
-        return productService.listProducts();
+    public List<ProductSummaryResponse> list(
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String q) {
+        return productService.listProducts(categoryId, q);
     }
 
     @GetMapping("/{id}")
