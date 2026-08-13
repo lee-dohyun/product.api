@@ -1,6 +1,7 @@
 package com.dh.product.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.http.CacheControl;
@@ -31,11 +32,12 @@ public class CategoryController {
 
     // posselect-shell Header 위젯이 브라우저에서 직접 호출한다 — 카테고리는 자주 안 바뀌므로
     // 5분 캐시를 걸어서 매 페이지 로드마다 이 엔드포인트를 때리지 않게 한다(Next.js fetch revalidate
-    // 대신 표준 HTTP 캐시로 같은 효과를 냄).
+    // 대신 표준 HTTP 캐시로 같은 효과를 냄). 응답은 여전히 평면 목록이고 parentId만 추가됐다 -
+    // 기존 소비자(위젯)는 이 필드를 무시하면 그대로 동작한다.
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> list() {
         List<CategoryResponse> categories = categoryRepository.findAll().stream()
-                .map(c -> new CategoryResponse(c.getId(), c.getName()))
+                .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic())
@@ -46,7 +48,17 @@ public class CategoryController {
     public ResponseEntity<CategoryResponse> create(@Valid @RequestBody CategoryCreateRequest request) {
         Category category = new Category();
         category.setName(request.name());
+        if (request.parentId() != null) {
+            Category parent = categoryRepository.findById(request.parentId())
+                    .orElseThrow(() -> new NoSuchElementException("parent category not found: " + request.parentId()));
+            category.setParent(parent);
+        }
         Category saved = categoryRepository.save(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(new CategoryResponse(saved.getId(), saved.getName()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved));
+    }
+
+    private CategoryResponse toResponse(Category category) {
+        Long parentId = category.getParent() != null ? category.getParent().getId() : null;
+        return new CategoryResponse(category.getId(), category.getName(), parentId);
     }
 }

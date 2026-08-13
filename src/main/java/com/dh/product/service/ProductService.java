@@ -145,7 +145,7 @@ public class ProductService {
 
         return new ProductResponse(
                 product.getId(),
-                new CategoryResponse(product.getCategory().getId(), product.getCategory().getName()),
+                toCategoryResponse(product.getCategory()),
                 product.getName(),
                 product.getDescription(),
                 product.getPrice(),
@@ -153,5 +153,10 @@ public class ProductService {
                 images,
                 product.getCreatedAt(),
                 product.getUpdatedAt());
+    }
+
+    private CategoryResponse toCategoryResponse(Category category) {
+        Long parentId = category.getParent() != null ? category.getParent().getId() : null;
+        return new CategoryResponse(category.getId(), category.getName(), parentId);
     }
 }

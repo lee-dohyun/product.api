@@ -12,7 +12,7 @@ import jakarta.validation.constraints.NotNull;
 
 public class ProductDtos {
 
-    public record CategoryResponse(Long id, String name) {
+    public record CategoryResponse(Long id, String name, Long parentId) {
     }
 
     public record ProductImageResponse(Long id, String imageUrl, Short sortOrder) {
@@ -58,6 +58,6 @@ public class ProductDtos {
             List<String> imageUrls) {
     }
 
-    public record CategoryCreateRequest(@NotBlank String name) {
+    public record CategoryCreateRequest(@NotBlank String name, Long parentId) {
     }
 }
