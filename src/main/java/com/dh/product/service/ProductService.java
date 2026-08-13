@@ -28,10 +28,15 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final InventoryService inventoryService;
 
-    public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository) {
+    public ProductService(
+            ProductRepository productRepository,
+            CategoryRepository categoryRepository,
+            InventoryService inventoryService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.inventoryService = inventoryService;
     }
 
     public List<ProductSummaryResponse> listProducts(Long categoryId, String q) {
@@ -90,7 +95,9 @@ public class ProductService {
             }
         }
 
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        inventoryService.initialize(saved, request.stockQuantity());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -105,7 +112,7 @@ public class ProductService {
         product.setName(request.name());
         product.setDescription(request.description());
         product.setPrice(request.price());
-        product.setStockQuantity(request.stockQuantity());
+        inventoryService.adjustTo(product, request.stockQuantity());
 
         product.getImages().clear();
         if (request.imageUrls() != null) {
@@ -127,6 +134,7 @@ public class ProductService {
         if (!productRepository.existsById(id)) {
             throw new NoSuchElementException("product not found: " + id);
         }
+        inventoryService.deleteForProduct(id);
         productRepository.deleteById(id);
     }
 
