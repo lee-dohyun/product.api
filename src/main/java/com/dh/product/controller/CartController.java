@@ -54,29 +54,29 @@ public class CartController {
             @CookieValue(name = CART_COOKIE, required = false) String cartId,
             @Valid @RequestBody CartItemAddRequest request) {
         String id = cartId != null ? cartId : newCartId();
-        CartResponse response = cartService.addItem(id, request.productId(), request.quantity());
+        CartResponse response = cartService.addItem(id, request.variantId(), request.quantity());
         return cartId != null ? ResponseEntity.ok(response) : withCartCookie(id, response);
     }
 
-    @PutMapping("/items/{productId}")
+    @PutMapping("/items/{variantId}")
     public ResponseEntity<CartResponse> updateItem(
             @CookieValue(name = CART_COOKIE, required = false) String cartId,
-            @PathVariable Long productId,
+            @PathVariable Long variantId,
             @Valid @RequestBody CartItemUpdateRequest request) {
         if (cartId == null) {
             return withCartCookie(newCartId(), EMPTY_CART);
         }
-        return ResponseEntity.ok(cartService.updateItem(cartId, productId, request.quantity()));
+        return ResponseEntity.ok(cartService.updateItem(cartId, variantId, request.quantity()));
     }
 
-    @DeleteMapping("/items/{productId}")
+    @DeleteMapping("/items/{variantId}")
     public ResponseEntity<CartResponse> removeItem(
             @CookieValue(name = CART_COOKIE, required = false) String cartId,
-            @PathVariable Long productId) {
+            @PathVariable Long variantId) {
         if (cartId == null) {
             return withCartCookie(newCartId(), EMPTY_CART);
         }
-        return ResponseEntity.ok(cartService.removeItem(cartId, productId));
+        return ResponseEntity.ok(cartService.removeItem(cartId, variantId));
     }
 
     @DeleteMapping

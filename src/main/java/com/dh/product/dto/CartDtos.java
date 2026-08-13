@@ -8,13 +8,14 @@ import jakarta.validation.constraints.NotNull;
 
 public class CartDtos {
 
-    public record CartItemAddRequest(@NotNull Long productId, @NotNull @Min(1) Integer quantity) {
+    public record CartItemAddRequest(@NotNull Long variantId, @NotNull @Min(1) Integer quantity) {
     }
 
     public record CartItemUpdateRequest(@NotNull @Min(0) Integer quantity) {
     }
 
     public record CartItemResponse(
+            Long variantId,
             Long productId,
             String name,
             BigDecimal price,

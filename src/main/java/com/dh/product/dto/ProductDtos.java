@@ -18,7 +18,27 @@ public class ProductDtos {
     public record ProductImageResponse(Long id, String imageUrl, Short sortOrder) {
     }
 
+    public record VariantOptionValueResponse(Long optionId, String optionName, Long valueId, String value) {
+    }
+
+    public record VariantResponse(
+            Long id,
+            String sku,
+            BigDecimal price,
+            boolean active,
+            Integer stockQuantity,
+            List<VariantOptionValueResponse> optionValues) implements Serializable {
+    }
+
+    public record OptionValueResponse(Long id, String value) {
+    }
+
+    public record OptionResponse(Long id, String name, List<OptionValueResponse> values) {
+    }
+
     // 단일 상품 조회 응답 - Redis에 JSON으로 캐싱되므로 Serializable
+    // price/stockQuantity는 저장된 값이 아니라 활성 variant로부터 매번 계산된다
+    // (price=최저가, stockQuantity=합계) - 목록/카드 UI가 대표값 하나를 그대로 쓸 수 있도록.
     public record ProductResponse(
             Long id,
             CategoryResponse category,
@@ -27,6 +47,8 @@ public class ProductDtos {
             BigDecimal price,
             Integer stockQuantity,
             List<ProductImageResponse> images,
+            List<OptionResponse> options,
+            List<VariantResponse> variants,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) implements Serializable {
     }
@@ -59,5 +81,25 @@ public class ProductDtos {
     }
 
     public record CategoryCreateRequest(@NotBlank String name, Long parentId) {
+    }
+
+    public record CreateOptionRequest(@NotBlank String name) {
+    }
+
+    public record CreateOptionValueRequest(@NotBlank String value) {
+    }
+
+    public record CreateVariantRequest(
+            String sku,
+            @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
+            @NotNull @Min(0) Integer stockQuantity,
+            List<Long> optionValueIds) {
+    }
+
+    public record UpdateVariantRequest(
+            String sku,
+            @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
+            @NotNull @Min(0) Integer stockQuantity,
+            boolean active) {
     }
 }

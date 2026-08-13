@@ -18,8 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// 상품 1개당 재고 1행. 상품 1개=variant 1개인 현재 모델을 반영 - variant/SKU가 도입되면
-// product_id 대신 variant_id를 참조하도록 바뀔 지점.
+// variant(SKU) 1개당 재고 1행.
 @Entity
 @Table(name = "inventories")
 @Getter
@@ -32,8 +31,8 @@ public class Inventory {
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false, unique = true)
-    private Product product;
+    @JoinColumn(name = "variant_id", nullable = false, unique = true)
+    private ProductVariant variant;
 
     @Column(nullable = false)
     private Integer quantity;
@@ -60,8 +59,8 @@ public class Inventory {
         updatedAt = LocalDateTime.now();
     }
 
-    public Inventory(Product product, int quantity) {
-        this.product = product;
+    public Inventory(ProductVariant variant, int quantity) {
+        this.variant = variant;
         this.quantity = quantity;
     }
 
@@ -69,7 +68,7 @@ public class Inventory {
     public void deduct(int amount) {
         if (quantity < amount) {
             throw new IllegalStateException(
-                    "재고가 부족합니다: productId=" + product.getId() + ", 요청=" + amount + ", 재고=" + quantity);
+                    "재고가 부족합니다: variantId=" + variant.getId() + ", 요청=" + amount + ", 재고=" + quantity);
         }
         quantity -= amount;
     }
