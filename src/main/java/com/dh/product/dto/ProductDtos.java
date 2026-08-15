@@ -102,4 +102,17 @@ public class ProductDtos {
             @NotNull @Min(0) Integer stockQuantity,
             boolean active) {
     }
+
+    /**
+     * 주문 생성 시 order.api가 가격을 확정하기 위해 조회하는 응답. productId/productName까지
+     * 함께 돌려주는 이유는, 클라이언트가 보낸 productId-variantId 조합을 믿지 않고 variantId
+     * 하나만으로 나머지를 전부 서버가 결정하기 위함이다(posselect #232).
+     */
+    public record VariantResolveResponse(
+            Long variantId,
+            Long productId,
+            String productName,
+            BigDecimal price,
+            boolean active) {
+    }
 }

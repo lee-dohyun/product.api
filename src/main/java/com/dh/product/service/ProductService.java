@@ -1,6 +1,7 @@
 package com.dh.product.service;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
 import com.dh.product.dto.ProductDtos.UpdateVariantRequest;
 import com.dh.product.dto.ProductDtos.VariantOptionValueResponse;
+import com.dh.product.dto.ProductDtos.VariantResolveResponse;
 import com.dh.product.dto.ProductDtos.VariantResponse;
 import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.InventoryRepository;
@@ -233,6 +235,24 @@ public class ProductService {
         List<ProductVariant> variants = productVariantRepository.findByProductId(productId);
         Map<Long, Integer> stock = stockByVariantId(variants.stream().map(ProductVariant::getId).toList());
         return variants.stream().map(v -> toVariantResponse(v, stock.getOrDefault(v.getId(), 0))).toList();
+    }
+
+    /**
+     * variantId만으로 상품/가격을 확정해 돌려준다. 존재하지 않는 id는 결과에서 빠지므로
+     * 호출자가 요청한 개수와 대조해 누락을 판정해야 한다.
+     */
+    public List<VariantResolveResponse> resolveVariants(Collection<Long> variantIds) {
+        if (variantIds == null || variantIds.isEmpty()) {
+            return List.of();
+        }
+        return productVariantRepository.findAllByIdWithProduct(variantIds).stream()
+                .map(v -> new VariantResolveResponse(
+                        v.getId(),
+                        v.getProduct().getId(),
+                        v.getProduct().getName(),
+                        v.getPrice(),
+                        v.isActive()))
+                .toList();
     }
 
     private ProductOption findOptionOrThrow(Long productId, Long optionId) {
