@@ -80,10 +80,46 @@ public class InventoryDeductor {
                 .toList();
     }
 
+    @Transactional
+    public List<InventoryBalanceResponse> restoreOnce(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
+        if (inventoryTransactionRepository.existsByOrderIdAndType(
+                orderId, InventoryTransactionType.ORDER_RESTORE)) {
+            log.info("이미 복원된 주문 - 중복 복원 없이 현재 잔고를 반환 (orderId={})", orderId);
+            return items.stream()
+                    .map(item -> new InventoryBalanceResponse(
+                            item.variantId(),
+                            inventoryRepository.findByVariantId(item.variantId())
+                                    .map(Inventory::getQuantity)
+                                    .orElse(0)))
+                    .toList();
+        }
+        return items.stream()
+                .map(item -> {
+                    Inventory inventory = getOrThrow(item.variantId());
+                    inventory.restore(item.quantity());
+                    evictProductCache(inventory.getVariant().getProduct().getId());
+                    inventoryTransactionRepository.save(new InventoryTransaction(
+                            inventory, InventoryTransactionType.ORDER_RESTORE, item.quantity(), orderId, null));
+                    return new InventoryBalanceResponse(item.variantId(), inventory.getQuantity());
+                })
+                .toList();
+    }
+
     /** 차감 없이 요청 항목들의 현재 잔고만 조회한다 - 이미 처리된 주문에 응답할 때 쓴다. */
     @Transactional(readOnly = true)
     public List<InventoryBalanceResponse> currentBalances(List<DeductItem> items) {
         return balancesOf(items);
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryBalanceResponse> currentBalancesForRestore(List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
+        return items.stream()
+                .map(item -> new InventoryBalanceResponse(
+                        item.variantId(),
+                        inventoryRepository.findByVariantId(item.variantId())
+                                .map(Inventory::getQuantity)
+                                .orElse(0)))
+                .toList();
     }
 
     private List<InventoryBalanceResponse> balancesOf(List<DeductItem> items) {

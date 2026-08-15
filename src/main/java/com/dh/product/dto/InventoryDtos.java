@@ -20,4 +20,12 @@ public class InventoryDtos {
 
     public record InventoryBalanceResponse(Long variantId, Integer remainingQuantity) {
     }
+
+    public record RestoreItem(@NotNull Long variantId, @NotNull @Min(1) Integer quantity) {
+    }
+
+    public record RestoreRequest(
+            @NotNull Long orderId,
+            @NotEmpty @Valid List<RestoreItem> items) {
+    }
 }

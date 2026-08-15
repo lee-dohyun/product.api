@@ -45,4 +45,13 @@ public class InventoryDeductionService {
             return deductor.currentBalances(items);
         }
     }
+
+    public List<InventoryBalanceResponse> restoreForOrder(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
+        try {
+            return deductor.restoreOnce(orderId, items);
+        } catch (DataIntegrityViolationException e) {
+            log.info("동시 중복 복원 요청을 유니크 제약으로 차단 (orderId={})", orderId);
+            return deductor.currentBalancesForRestore(items);
+        }
+    }
 }

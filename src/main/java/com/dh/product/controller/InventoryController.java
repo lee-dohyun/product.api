@@ -31,4 +31,9 @@ public class InventoryController {
     public ResponseEntity<List<InventoryBalanceResponse>> deduct(@Valid @RequestBody DeductRequest request) {
         return ResponseEntity.ok(inventoryDeductionService.deductForOrder(request.orderId(), request.items()));
     }
+
+    @PostMapping("/restore")
+    public ResponseEntity<List<InventoryBalanceResponse>> restore(@Valid @RequestBody com.dh.product.dto.InventoryDtos.RestoreRequest request) {
+        return ResponseEntity.ok(inventoryDeductionService.restoreForOrder(request.orderId(), request.items()));
+    }
 }
