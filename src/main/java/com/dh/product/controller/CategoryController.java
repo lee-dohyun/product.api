@@ -25,9 +25,11 @@ import jakarta.validation.Valid;
 public class CategoryController {
 
     private final CategoryRepository categoryRepository;
+    private final com.dh.product.repository.ChannelRepository channelRepository;
 
-    public CategoryController(CategoryRepository categoryRepository) {
+    public CategoryController(CategoryRepository categoryRepository, com.dh.product.repository.ChannelRepository channelRepository) {
         this.categoryRepository = categoryRepository;
+        this.channelRepository = channelRepository;
     }
 
     // posselect-shell Header 위젯이 브라우저에서 직접 호출한다 — 카테고리는 자주 안 바뀌므로
@@ -35,8 +37,9 @@ public class CategoryController {
     // 대신 표준 HTTP 캐시로 같은 효과를 냄). 응답은 여전히 평면 목록이고 parentId만 추가됐다 -
     // 기존 소비자(위젯)는 이 필드를 무시하면 그대로 동작한다.
     @GetMapping
-    public ResponseEntity<List<CategoryResponse>> list() {
-        List<CategoryResponse> categories = categoryRepository.findAll().stream()
+    public ResponseEntity<List<CategoryResponse>> list(
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Channel", defaultValue = "1") Long channelId) {
+        List<CategoryResponse> categories = categoryRepository.findByChannelId(channelId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok()
@@ -45,9 +48,16 @@ public class CategoryController {
     }
 
     @PostMapping
-    public ResponseEntity<CategoryResponse> create(@Valid @RequestBody CategoryCreateRequest request) {
+    public ResponseEntity<CategoryResponse> create(
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Channel", defaultValue = "1") Long channelId,
+            @Valid @RequestBody CategoryCreateRequest request) {
         Category category = new Category();
         category.setName(request.name());
+        
+        com.dh.product.domain.Channel channel = channelRepository.findById(channelId)
+                .orElseThrow(() -> new NoSuchElementException("channel not found: " + channelId));
+        category.setChannel(channel);
+
         if (request.parentId() != null) {
             Category parent = categoryRepository.findById(request.parentId())
                     .orElseThrow(() -> new NoSuchElementException("parent category not found: " + request.parentId()));

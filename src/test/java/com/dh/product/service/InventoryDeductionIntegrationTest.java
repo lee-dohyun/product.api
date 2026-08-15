@@ -81,6 +81,9 @@ class InventoryDeductionIntegrationTest {
 
     private Long variantId;
 
+    @Autowired
+    private com.dh.product.repository.ChannelRepository channelRepository;
+
     @BeforeEach
     void setUp() {
         inventoryTransactionRepository.deleteAll();
@@ -88,9 +91,14 @@ class InventoryDeductionIntegrationTest {
         variantRepository.deleteAll();
         productRepository.deleteAll();
         categoryRepository.deleteAll();
+        channelRepository.deleteAll();
+
+        com.dh.product.domain.Channel channel = new com.dh.product.domain.Channel("종합몰", "posselect.com");
+        channelRepository.save(channel);
 
         Category category = new Category();
         category.setName("테스트 카테고리");
+        category.setChannel(channel);
         categoryRepository.save(category);
 
         Product product = new Product();

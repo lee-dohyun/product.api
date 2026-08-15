@@ -24,8 +24,12 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "channel_id", nullable = false)
+    private Channel channel;
 
     // 최상위 카테고리는 null. 2뎁스만 지원(하위 카테고리가 또 하위를 갖는 3뎁스는 현재 UI가
     // 전제하지 않음 - posselect-shell 카테고리 패널 주석 참고).

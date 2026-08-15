@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.dh.product.domain.Category;
 
 public interface CategoryRepository extends JpaRepository<Category, Long> {
+    java.util.List<Category> findByChannelId(Long channelId);
 }
