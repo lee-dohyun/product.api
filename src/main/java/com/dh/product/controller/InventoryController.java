@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.dto.InventoryDtos.DeductRequest;
 import com.dh.product.dto.InventoryDtos.InventoryBalanceResponse;
-import com.dh.product.service.InventoryService;
+import com.dh.product.service.InventoryDeductionService;
 
 import jakarta.validation.Valid;
 
@@ -21,14 +21,14 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/inventory")
 public class InventoryController {
 
-    private final InventoryService inventoryService;
+    private final InventoryDeductionService inventoryDeductionService;
 
-    public InventoryController(InventoryService inventoryService) {
-        this.inventoryService = inventoryService;
+    public InventoryController(InventoryDeductionService inventoryDeductionService) {
+        this.inventoryDeductionService = inventoryDeductionService;
     }
 
     @PostMapping("/deduct")
     public ResponseEntity<List<InventoryBalanceResponse>> deduct(@Valid @RequestBody DeductRequest request) {
-        return ResponseEntity.ok(inventoryService.deductForOrder(request.orderId(), request.items()));
+        return ResponseEntity.ok(inventoryDeductionService.deductForOrder(request.orderId(), request.items()));
     }
 }
