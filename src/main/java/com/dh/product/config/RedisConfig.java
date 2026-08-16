@@ -26,14 +26,26 @@ public class RedisConfig {
         Jackson2JsonRedisSerializer<ProductResponse> jsonSerializer =
                 new Jackson2JsonRedisSerializer<>(objectMapper, ProductResponse.class);
 
+        org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer genericSerializer =
+                new org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer();
+
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
                 .disableCachingNullValues()
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
+        RedisCacheConfiguration mainConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(5))
+                .disableCachingNullValues()
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(genericSerializer));
+
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
+                .withCacheConfiguration("main-best", mainConfig)
+                .withCacheConfiguration("main-new", mainConfig)
+                .withCacheConfiguration("main-by-category", mainConfig.entryTtl(Duration.ofMinutes(10)))
                 .build();
     }
 }
