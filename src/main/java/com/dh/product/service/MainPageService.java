@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductVariant;
+import com.dh.product.dto.BannerDtos.BannerResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.InventoryRepository;
@@ -24,6 +27,8 @@ import com.dh.product.repository.ProductVariantRepository;
 @Service
 @Transactional(readOnly = true)
 public class MainPageService {
+
+    private static final Logger log = LoggerFactory.getLogger(MainPageService.class);
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -70,6 +75,33 @@ public class MainPageService {
                     return toSummaryResponses(products);
                 }
         ));
+    }
+
+    /**
+     * 메인 페이지 프로모션 배너 목록을 반환합니다.
+     * TODO: [product.api#8] 향후 하드코딩된 Mock 데이터를 DB(혹은 백오피스) 연동으로 교체해야 함
+     */
+    public List<BannerResponse> getBanners() {
+        log.info("[MainPageService/getBanners] 메인 페이지 배너 조회 요청");
+        // Mock data for banners, to be replaced with DB fetch in the future
+        return List.of(
+            new BannerResponse(
+                1L,
+                "검증된 상품만 엄선했습니다",
+                "posselect.com 오픈 기념 특별전",
+                null,
+                "/",
+                "var(--color-primary)"
+            ),
+            new BannerResponse(
+                2L,
+                "새로운 계절, 신상품 입고",
+                "트렌드를 선도하는 상품들을 만나보세요",
+                null,
+                "/",
+                "var(--color-secondary)"
+            )
+        );
     }
 
     private List<ProductSummaryResponse> toSummaryResponses(List<Product> products) {
