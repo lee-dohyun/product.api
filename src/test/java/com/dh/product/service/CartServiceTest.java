@@ -73,15 +73,15 @@ class CartServiceTest {
         // given
         given(productVariantRepository.existsById(1L)).willReturn(true);
         given(valueOperations.get("cart:user1")).willReturn(null); // empty cart
-        
+
         Product product = new Product();
         product.setName("Test Product");
         product.setDescription("Desc");
-        
+
         ProductVariant variant = new ProductVariant(product, "Opt1", BigDecimal.valueOf(100));
         org.springframework.test.util.ReflectionTestUtils.setField(variant, "id", 1L);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 100L);
-        
+
         given(productVariantRepository.findAllById(Set.of(1L))).willReturn(List.of(variant));
 
         // when
@@ -115,15 +115,15 @@ class CartServiceTest {
         // given
         String existingJson = "{\"1\":2, \"2\":1}";
         given(valueOperations.get("cart:user1")).willReturn(existingJson);
-        
+
         Product product = new Product();
         product.setName("Product2");
         product.setDescription("Desc");
-        
+
         ProductVariant variant2 = new ProductVariant(product, "Opt2", BigDecimal.valueOf(50));
         org.springframework.test.util.ReflectionTestUtils.setField(variant2, "id", 2L);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 101L);
-        
+
         given(productVariantRepository.findAllById(Set.of(2L))).willReturn(List.of(variant2));
 
         // when

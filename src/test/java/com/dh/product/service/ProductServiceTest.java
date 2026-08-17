@@ -76,7 +76,7 @@ class ProductServiceTest {
         given(productRepository.findAll()).willReturn(List.of(product));
         given(productVariantRepository.findByProductIdIn(List.of(1L)))
                 .willReturn(List.of(variant1, variant2, variant3));
-        
+
         Inventory inv1 = new Inventory(variant1, 10);
         Inventory inv3 = new Inventory(variant3, 5);
         given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of(inv1, inv3));
@@ -112,7 +112,7 @@ class ProductServiceTest {
 
         given(productRepository.findById(1L)).willReturn(Optional.of(product));
         given(productVariantRepository.findByProductId(1L)).willReturn(List.of(variant1, variant2));
-        
+
         Inventory inv1 = new Inventory(variant1, 10);
         given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of(inv1));
 

@@ -55,10 +55,7 @@ public class ProductVariant {
     private LocalDateTime updatedAt;
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "product_variant_option_values",
-            joinColumns = @JoinColumn(name = "variant_id"),
-            inverseJoinColumns = @JoinColumn(name = "option_value_id"))
+    @JoinTable(name = "product_variant_option_values", joinColumns = @JoinColumn(name = "variant_id"), inverseJoinColumns = @JoinColumn(name = "option_value_id"))
     private List<ProductOptionValue> optionValues = new ArrayList<>();
 
     @PrePersist

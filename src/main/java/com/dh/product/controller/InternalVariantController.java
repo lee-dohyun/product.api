@@ -15,7 +15,7 @@ import com.dh.product.service.ProductService;
 // 가격을 클라이언트가 정하던 문제를 막기 위한 것이므로, 이 응답이 주문 금액의 유일한 출처다 —
 // Redmine posselect #232.
 @RestController
-@RequestMapping("/api/internal/variants")
+@RequestMapping("/internal/variants")
 public class InternalVariantController {
 
     private final ProductService productService;

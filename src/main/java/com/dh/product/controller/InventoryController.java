@@ -18,7 +18,7 @@ import jakarta.validation.Valid;
 // 없어 외부에서는 도달 불가능하므로 별도 인증을 두지 않았다(gateway/CLAUDE.md의 내부 서비스
 // 신뢰 경계 관례와 동일).
 @RestController
-@RequestMapping("/api/inventory")
+@RequestMapping("/internal/inventory")
 public class InventoryController {
 
     private final InventoryDeductionService inventoryDeductionService;
