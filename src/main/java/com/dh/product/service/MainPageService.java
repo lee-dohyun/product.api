@@ -13,12 +13,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dh.product.domain.Banner;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.BannerDtos.BannerResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
+import com.dh.product.repository.BannerRepository;
 import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.ProductRepository;
@@ -34,16 +36,19 @@ public class MainPageService {
     private final CategoryRepository categoryRepository;
     private final ProductVariantRepository productVariantRepository;
     private final InventoryRepository inventoryRepository;
+    private final BannerRepository bannerRepository;
 
     public MainPageService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             ProductVariantRepository productVariantRepository,
-            InventoryRepository inventoryRepository) {
+            InventoryRepository inventoryRepository,
+            BannerRepository bannerRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
         this.inventoryRepository = inventoryRepository;
+        this.bannerRepository = bannerRepository;
     }
 
     @Cacheable(cacheNames = "main-best")
@@ -79,29 +84,20 @@ public class MainPageService {
 
     /**
      * 메인 페이지 프로모션 배너 목록을 반환합니다.
-     * TODO: [product.api#8] 향후 하드코딩된 Mock 데이터를 DB(혹은 백오피스) 연동으로 교체해야 함
      */
     public List<BannerResponse> getBanners() {
-        log.info("[MainPageService/getBanners] 메인 페이지 배너 조회 요청");
-        // Mock data for banners, to be replaced with DB fetch in the future
-        return List.of(
-            new BannerResponse(
-                1L,
-                "검증된 상품만 엄선했습니다",
-                "posselect.com 오픈 기념 특별전",
-                null,
-                "/",
-                "var(--color-primary)"
-            ),
-            new BannerResponse(
-                2L,
-                "새로운 계절, 신상품 입고",
-                "트렌드를 선도하는 상품들을 만나보세요",
-                null,
-                "/",
-                "var(--color-secondary)"
-            )
-        );
+        log.info("[MainPageService/getBanners] 메인 페이지 배너 DB 조회 요청");
+        List<Banner> banners = bannerRepository.findAllByIsActiveTrueOrderBySortOrderAsc();
+        return banners.stream()
+                .map(b -> new BannerResponse(
+                        b.getId(),
+                        b.getTitle(),
+                        b.getSubtitle(),
+                        b.getImageUrl(),
+                        b.getLink(),
+                        b.getBgColor()
+                ))
+                .toList();
     }
 
     private List<ProductSummaryResponse> toSummaryResponses(List<Product> products) {
