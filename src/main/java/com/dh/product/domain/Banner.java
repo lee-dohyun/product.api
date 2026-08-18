@@ -1,5 +1,6 @@
 package com.dh.product.domain;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,14 +21,18 @@ public class Banner {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String title;
     
     private String subtitle;
     
+    @Column(length = 500)
     private String imageUrl;
     
+    @Column(length = 500)
     private String link;
     
+    @Column(length = 50)
     private String bgColor;
 
     private Integer sortOrder;
