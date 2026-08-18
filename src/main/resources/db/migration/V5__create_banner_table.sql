@@ -1,5 +1,5 @@
 CREATE TABLE banners (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     subtitle VARCHAR(255),
     image_url VARCHAR(500),
