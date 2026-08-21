@@ -150,3 +150,8 @@ gradle-app.setting
 
 # Claude Code session worktrees (never track, see repo history for why)
 .claude/worktrees/
+
+### PosSelect 추가 ###
+# 디버깅 잔해 — 루트에 남기지 말 것 (*.log는 위 Java 섹션에서 이미 무시되지만 .txt는 아니다)
+/ci_log.txt
+/test_output.log
