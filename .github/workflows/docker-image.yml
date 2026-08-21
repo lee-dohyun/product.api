@@ -79,7 +79,9 @@ jobs:
 
   deploy:
     needs: build
-    if: github.event_name == 'push'
+    # push 뿐 아니라 수동 실행(workflow_dispatch)에서도 배포한다. 이게 없으면 수동 실행은
+    # 이미지를 빌드·푸시만 하고 클러스터에는 반영하지 않아, 재배포 수단으로 쓸 수 없다.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, k3s-home]
 
     steps:
