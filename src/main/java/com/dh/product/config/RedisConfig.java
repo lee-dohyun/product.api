@@ -3,6 +3,7 @@ package com.dh.product.config;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,7 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import com.dh.product.dto.BannerDtos.BannerResponse;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.fasterxml.jackson.databind.JavaType;
@@ -74,6 +76,35 @@ public class RedisConfig {
         return new Jackson2JsonRedisSerializer<>(mapper, type);
     }
 
+    /** 메인 배너({@code main-banners})용 — {@code List<BannerResponse>}. */
+    public static RedisSerializer<Object> bannerListSerializer(ObjectMapper mapper) {
+        return new Jackson2JsonRedisSerializer<>(mapper,
+                mapper.getTypeFactory().constructCollectionType(List.class, BannerResponse.class));
+    }
+
+    /**
+     * 캐시 이름 -> (TTL, 값 직렬화기). <b>{@link CacheNames} 에 상수를 추가하면 여기에도 반드시
+     * 등록해야 한다.</b> 등록을 빠뜨리면 조용히 {@code cacheDefaults} 로 떨어지는데, 그 기본
+     * 직렬화기는 {@code ProductResponse} 고정 타입이라 다른 타입을 담은 캐시는 히트에서 터진다.
+     *
+     * <p>실제로 두 번 났다 — product.api#33(메인 3종), #37(배너). 두 번째는 첫 번째를 고친 지
+     * 한 시간 만이었고, 그때 남긴 "새 캐시를 추가하면 테스트도 추가할 것"이라는 주석은 소용이
+     * 없었다. 그래서 {@code MainCacheSerializationTest} 가 이 맵과 {@link CacheNames} 를
+     * 대조해서 누락을 CI 에서 막는다.
+     */
+    public static Map<String, CacheSpec> cacheSpecs(ObjectMapper mapper) {
+        return Map.of(
+                CacheNames.PRODUCT, new CacheSpec(Duration.ofMinutes(10), productSerializer(mapper)),
+                CacheNames.MAIN_BEST, new CacheSpec(Duration.ofMinutes(5), productSummaryListSerializer(mapper)),
+                CacheNames.MAIN_NEW, new CacheSpec(Duration.ofMinutes(5), productSummaryListSerializer(mapper)),
+                CacheNames.MAIN_BY_CATEGORY, new CacheSpec(Duration.ofMinutes(10), byCategorySerializer(mapper)),
+                CacheNames.MAIN_BANNERS, new CacheSpec(Duration.ofMinutes(10), bannerListSerializer(mapper)));
+    }
+
+    /** 캐시 하나의 TTL 과 값 직렬화기. */
+    public record CacheSpec(Duration ttl, RedisSerializer<Object> serializer) {
+    }
+
     private static JavaType summaryListType(ObjectMapper mapper) {
         return mapper.getTypeFactory().constructCollectionType(List.class, ProductSummaryResponse.class);
     }
@@ -81,25 +112,21 @@ public class RedisConfig {
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         ObjectMapper mapper = cacheObjectMapper();
+        Map<String, CacheSpec> specs = cacheSpecs(mapper);
 
-        // 단일 상품 상세: product::{id}, TTL 10분
-        RedisCacheConfiguration defaultConfig = baseConfig(Duration.ofMinutes(10), productSerializer(mapper));
-        RedisCacheConfiguration bestNewConfig = baseConfig(Duration.ofMinutes(5), productSummaryListSerializer(mapper));
-        RedisCacheConfiguration byCategoryConfig = baseConfig(Duration.ofMinutes(10), byCategorySerializer(mapper));
-
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(defaultConfig)
-                .withCacheConfiguration(CacheNames.MAIN_BEST, bestNewConfig)
-                .withCacheConfiguration(CacheNames.MAIN_NEW, bestNewConfig)
-                .withCacheConfiguration(CacheNames.MAIN_BY_CATEGORY, byCategoryConfig)
-                .build();
+        RedisCacheManager.RedisCacheManagerBuilder builder = RedisCacheManager.builder(connectionFactory)
+                // 기본값은 "등록되지 않은 캐시"를 위한 안전망이 아니다 - 어떤 타입이든 받아주는
+                // 직렬화기가 없기 때문이다. 등록 누락은 cacheSpecs 대조 테스트가 막는다.
+                .cacheDefaults(baseConfig(specs.get(CacheNames.PRODUCT)));
+        specs.forEach((name, spec) -> builder.withCacheConfiguration(name, baseConfig(spec)));
+        return builder.build();
     }
 
-    private RedisCacheConfiguration baseConfig(Duration ttl, RedisSerializer<Object> valueSerializer) {
+    private RedisCacheConfiguration baseConfig(CacheSpec spec) {
         return RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(ttl)
+                .entryTtl(spec.ttl())
                 .disableCachingNullValues()
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(valueSerializer));
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(spec.serializer()));
     }
 }
