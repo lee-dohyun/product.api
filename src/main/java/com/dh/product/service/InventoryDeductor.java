@@ -61,6 +61,12 @@ public class InventoryDeductor {
      * <p>같은 주문의 차감 요청이 <i>동시에</i> 들어와 아래 이력 확인을 둘 다 통과하는 경우는
      * {@code uq_inventory_transactions_order_deduct} 유니크 인덱스가 뒤엣것을 막는다. 그 예외를
      * 성공으로 바꿔 주는 건 트랜잭션 바깥인 {@link InventoryDeductionService}의 몫이다.
+     *
+     * <p><b>서로 다른 주문끼리 같은 재고 행을 놓고 경쟁하는 건 이 메서드가 직접 막는다</b>
+     * (product.api#35, 선착순 한정수량 프로모션 대비). {@code Inventory}의 {@code @Version}
+     * 낙관적 락에 기대던 read-modify-write 대신, 실제 차감은 {@link InventoryRepository#deductQuantity}의
+     * 단일 조건부 UPDATE(<code>WHERE quantity &gt;= amount</code>)로 원자적으로 수행한다. 영향받은
+     * 행이 0이면 재고 부족이므로 {@link IllegalStateException}을 던져 기존 409 매핑을 그대로 탄다.
      */
     @Transactional
     public List<InventoryBalanceResponse> deductOnce(Long orderId, List<DeductItem> items) {
@@ -70,14 +76,30 @@ public class InventoryDeductor {
             return balancesOf(items);
         }
         return items.stream()
-                .map(item -> {
-                    Inventory inventory = getOrThrow(item.variantId());
-                    inventory.deduct(item.quantity());
-                    evictProductCache(inventory.getVariant().getProduct().getId());
-                    record(inventory, item.quantity(), orderId);
-                    return new InventoryBalanceResponse(item.variantId(), inventory.getQuantity());
-                })
+                .map(item -> deductAtomically(item, orderId))
                 .toList();
+    }
+
+    private InventoryBalanceResponse deductAtomically(DeductItem item, Long orderId) {
+        Inventory inventory = getOrThrow(item.variantId());
+        // 아직 아무것도 mutate하지 않은, DB와 일치하는 값들 - 원자적 UPDATE 뒤에도 그대로 유효하다.
+        Long inventoryId = inventory.getId();
+        Long productId = inventory.getVariant().getProduct().getId();
+
+        int affectedRows = inventoryRepository.deductQuantity(inventoryId, item.quantity());
+        if (affectedRows == 0) {
+            throw new IllegalStateException(
+                    "재고가 부족합니다: variantId=" + item.variantId() + ", 요청=" + item.quantity());
+        }
+
+        // 벌크 UPDATE는 영속성 컨텍스트를 우회하므로 inventory.getQuantity()는 차감 전 값 그대로다.
+        // 커밋된 실제 값은 별도 스칼라 조회로 읽는다 (InventoryRepository#getQuantity 참고).
+        int remaining = inventoryRepository.getQuantity(inventoryId);
+
+        evictProductCache(productId);
+        inventoryTransactionRepository.save(new InventoryTransaction(
+                inventory, InventoryTransactionType.ORDER_DEDUCT, -item.quantity(), remaining, orderId, null));
+        return new InventoryBalanceResponse(item.variantId(), remaining);
     }
 
     @Transactional
@@ -142,10 +164,5 @@ public class InventoryDeductor {
     private Inventory getOrThrow(Long variantId) {
         return inventoryRepository.findByVariantId(variantId)
                 .orElseThrow(() -> new NoSuchElementException("inventory not found for variant: " + variantId));
-    }
-
-    private void record(Inventory inventory, int deducted, Long orderId) {
-        inventoryTransactionRepository.save(new InventoryTransaction(
-                inventory, InventoryTransactionType.ORDER_DEDUCT, -deducted, orderId, null));
     }
 }

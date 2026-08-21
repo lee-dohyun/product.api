@@ -62,10 +62,24 @@ public class InventoryTransaction {
 
     public InventoryTransaction(
             Inventory inventory, InventoryTransactionType type, int quantityChange, Long orderId, String reason) {
+        this(inventory, type, quantityChange, inventory.getQuantity(), orderId, reason);
+    }
+
+    /**
+     * balanceAfter를 명시적으로 받는 생성자 (product.api#35).
+     *
+     * <p>{@link com.dh.product.repository.InventoryRepository#deductQuantity}처럼 DB에서
+     * 원자적 벌크 UPDATE로 수량을 바꾸는 경로는 영속성 컨텍스트의 {@code inventory} 엔티티
+     * 필드가 갱신되지 않는다({@code inventory.getQuantity()}가 차감 전 값을 그대로 들고 있다).
+     * 이런 경로는 실제로 커밋된 수량을 별도로 조회해 여기로 넘겨야 한다.
+     */
+    public InventoryTransaction(
+            Inventory inventory, InventoryTransactionType type, int quantityChange, int balanceAfter,
+            Long orderId, String reason) {
         this.inventory = inventory;
         this.type = type;
         this.quantityChange = quantityChange;
-        this.balanceAfter = inventory.getQuantity();
+        this.balanceAfter = balanceAfter;
         this.orderId = orderId;
         this.reason = reason;
     }
