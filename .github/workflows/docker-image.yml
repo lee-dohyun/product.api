@@ -3,6 +3,9 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [ main ]
+  # 수동 재배포용. 직전 push 가 [skip ci] 라 배포가 건너뛰어졌을 때,
+  # 빈 커밋을 만들지 않고 이 워크플로만 다시 돌릴 수 있게 한다.
+  workflow_dispatch:
 
 jobs:
   build:
