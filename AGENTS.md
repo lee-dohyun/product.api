@@ -165,3 +165,15 @@ Issue를 조회해 겹치는 작업이 이미 `In Progress`인지 확인하고, 
 - [store.front](../store.front) — `home.posselect.com`의 메인/상품 화면. 배너 `bg_color`처럼 DB 값이
   프론트의 CSS 토큰과 맞아야 하는 지점이 있다(V7 사고).
 - [admin.front](../admin.front) — 상품/카테고리 쓰기의 유일한 정상 경로(staff realm 토큰).
+
+## Testcontainers 실행 (이 개발 머신 한정)
+
+`/var/run/docker.sock` 이 root 전용 podman 소켓을 가리키고 있어, 기본 설정으로는 통합 테스트가
+전부 `DockerClientProviderStrategy` 오류로 실패한다. 코드 문제가 아니므로 소켓만 바꿔주면 된다:
+
+```bash
+DOCKER_HOST="unix:///run/user/1000/podman/podman.sock" TESTCONTAINERS_RYUK_DISABLED=true ./gradlew test
+```
+
+CI(ubuntu-latest)는 실제 Docker 가 있어 그대로 동작한다. 로컬에서 통합 테스트가 안 돈다고
+"환경 탓"으로 넘기지 말 것 — 이 저장소의 정합성 검증은 대부분 Testcontainers 위에 있다.
