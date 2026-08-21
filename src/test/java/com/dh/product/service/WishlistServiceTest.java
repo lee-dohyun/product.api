@@ -10,6 +10,11 @@ import static org.mockito.Mockito.verify;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,14 +102,15 @@ class WishlistServiceTest {
         Product product = new Product();
         product.setName("Test");
         WishlistItem item = new WishlistItem(userId, product);
-        given(wishlistRepository.findByUserId(userId)).willReturn(List.of(item));
+        PageRequest pageRequest = PageRequest.of(0, 10);
+        given(wishlistRepository.findByUserId(userId, pageRequest)).willReturn(new PageImpl<>(List.of(item)));
 
         // when
-        List<WishlistItem> results = wishlistService.getWishlists(userId);
+        Page<WishlistItem> results = wishlistService.getWishlists(userId, pageRequest);
 
         // then
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getUserId()).isEqualTo(userId);
+        assertThat(results.getContent()).hasSize(1);
+        assertThat(results.getContent().get(0).getUserId()).isEqualTo(userId);
     }
 
     @Test

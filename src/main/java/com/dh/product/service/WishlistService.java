@@ -1,7 +1,6 @@
 package com.dh.product.service;
-
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +32,8 @@ public class WishlistService {
     }
 
     @Transactional(readOnly = true)
-    public List<WishlistItem> getWishlists(String userId) {
-        return wishlistRepository.findByUserId(userId);
+    public Page<WishlistItem> getWishlists(String userId, Pageable pageable) {
+        return wishlistRepository.findByUserId(userId, pageable);
     }
 
     @Transactional

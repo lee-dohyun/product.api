@@ -1,7 +1,7 @@
 package com.dh.product.controller;
-
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,11 +32,13 @@ public class WishlistController {
     }
 
     @GetMapping
-    public ResponseEntity<List<WishlistResponse>> getWishlists(
-            @RequestHeader("X-User-Id") String userId) {
-        List<WishlistResponse> responses = wishlistService.getWishlists(userId).stream()
-                .map(WishlistResponse::from)
-                .toList();
+    public ResponseEntity<Page<WishlistResponse>> getWishlists(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<WishlistResponse> responses = wishlistService.getWishlists(userId, pageRequest)
+                .map(WishlistResponse::from);
         return ResponseEntity.ok(responses);
     }
 

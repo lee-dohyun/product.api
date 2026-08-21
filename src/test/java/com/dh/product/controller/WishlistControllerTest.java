@@ -7,8 +7,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import java.util.List;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,15 +62,19 @@ class WishlistControllerTest {
         WishlistItem item = new WishlistItem(userId, product);
         org.springframework.test.util.ReflectionTestUtils.setField(item, "id", 1L);
 
-        given(wishlistService.getWishlists(userId)).willReturn(List.of(item));
+        given(wishlistService.getWishlists(eq(userId), any(Pageable.class)))
+            .willReturn(new PageImpl<>(List.of(item)));
 
         mockMvc.perform(get("/api/wishlists")
                 .header("X-User-Id", userId)
+                .param("page", "0")
+                .param("size", "10")
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(1L))
-                .andExpect(jsonPath("$[0].productId").value(100L))
-                .andExpect(jsonPath("$[0].productName").value("Product A"));
+                .andExpect(jsonPath("$.content[0].id").value(1L))
+                .andExpect(jsonPath("$.content[0].productId").value(100L))
+                .andExpect(jsonPath("$.content[0].productName").value("Product A"))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
