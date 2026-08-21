@@ -2,8 +2,11 @@ package com.dh.product.service;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -65,23 +68,78 @@ public class MainPageService {
         return toSummaryResponses(products);
     }
 
-    @Cacheable(cacheNames = CacheNames.MAIN_BY_CATEGORY)
-    public Map<Long, List<ProductSummaryResponse>> getProductsByCategory() {
-        // 모든 최상위 카테고리에 대해 최신 상품 2개씩 매핑
-        List<Category> categories = categoryRepository.findAll().stream()
-                .filter(c -> c.getParent() == null)
-                .toList();
+    /** 카테고리별 영역에서 대분류 하나당 보여줄 상품 수. */
+    private static final int PER_CATEGORY_LIMIT = 2;
 
-        return categories.stream().collect(Collectors.toMap(
-                Category::getId,
-                c -> {
-                    List<Product> products = productRepository.findByCategoryId(c.getId()).stream()
-                            .sorted(Comparator.comparing(Product::getCreatedAt).reversed())
-                            .limit(2)
-                            .toList();
-                    return toSummaryResponses(products);
-                }
-        ));
+    /**
+     * 대분류별 최신 상품 목록.
+     *
+     * <p>키가 {@code Long}이 아니라 {@code String}인 것은 Redis 캐시 왕복 때문이다 - JSON
+     * 오브젝트의 키는 항상 문자열이라 {@code Map<Long, ...>}으로 선언하면 캐시 히트 시
+     * 선언 타입과 실제 타입이 어긋나 응답을 쓸 때 터진다(product.api#33).
+     *
+     * <p>상품은 <b>중분류</b>에 달리므로 대분류 id 로만 조회하면 아무것도 안 나온다.
+     * 카탈로그가 2뎁스로 채워지자 이 영역이 통째로 비어버렸다 - 그전엔 상품이 1건뿐이었고
+     * 그게 우연히 대분류에 직접 달려 있어서 드러나지 않았다.
+     */
+    @Cacheable(cacheNames = CacheNames.MAIN_BY_CATEGORY)
+    public Map<String, List<ProductSummaryResponse>> getProductsByCategory() {
+        List<Category> all = categoryRepository.findAll();
+        if (all.isEmpty()) {
+            return Map.of();
+        }
+
+        // 카테고리 id -> 그 카테고리가 속한 대분류 id (대분류 자신도 포함)
+        Map<Long, Long> rootByCategoryId = new HashMap<>();
+        for (Category c : all) {
+            Long rootId = resolveRootId(c);
+            if (rootId != null) {
+                rootByCategoryId.put(c.getId(), rootId);
+            }
+        }
+
+        // 대분류마다 따로 조회하지 않고 한 번에 가져와 묶는다.
+        Map<Long, List<Product>> productsByRoot = productRepository.findByCategoryIdIn(rootByCategoryId.keySet())
+                .stream()
+                .collect(Collectors.groupingBy(p -> rootByCategoryId.get(p.getCategory().getId())));
+
+        Map<Long, List<Product>> picked = new LinkedHashMap<>();
+        for (Category root : all) {
+            if (root.getParent() != null) {
+                continue;
+            }
+            picked.put(root.getId(), productsByRoot.getOrDefault(root.getId(), List.of()).stream()
+                    .sorted(Comparator.comparing(Product::getCreatedAt).reversed())
+                    .limit(PER_CATEGORY_LIMIT)
+                    .toList());
+        }
+
+        // 요약 변환은 전체를 모아 한 번만 한다 - 대분류마다 부르면 variant/재고 조회가
+        // 대분류 수만큼 반복된다.
+        Map<Long, ProductSummaryResponse> summaryById = toSummaryResponses(
+                picked.values().stream().flatMap(List::stream).toList()).stream()
+                .collect(Collectors.toMap(ProductSummaryResponse::id, summary -> summary));
+
+        Map<String, List<ProductSummaryResponse>> result = new LinkedHashMap<>();
+        picked.forEach((rootId, products) -> result.put(
+                String.valueOf(rootId),
+                products.stream().map(p -> summaryById.get(p.getId())).filter(Objects::nonNull).toList()));
+        return result;
+    }
+
+    /**
+     * 카테고리가 속한 대분류 id. 도메인상 2뎁스만 쓰지만({@code Category} 주석), 데이터가
+     * 어긋나 더 깊어지거나 순환하더라도 여기서 멈추도록 상한을 둔다.
+     */
+    private Long resolveRootId(Category category) {
+        Category current = category;
+        for (int depth = 0; depth < 10 && current != null; depth++) {
+            if (current.getParent() == null) {
+                return current.getId();
+            }
+            current = current.getParent();
+        }
+        return null;
     }
 
     /**

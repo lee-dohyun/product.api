@@ -36,8 +36,13 @@ public class MainPageController {
         return mainPageService.getNewProducts(Math.min(limit, 20));
     }
 
+    /**
+     * 대분류별 최신 상품 목록. 키는 대분류 id 를 <b>문자열로</b> 담는다 - JSON 오브젝트의 키는
+     * 어차피 문자열이라, Long 으로 선언하면 Redis 캐시를 왕복한 값이 선언 타입과 어긋나
+     * 응답을 쓸 때 터진다(product.api#33). 클라이언트는 이미 문자열 키로 다루고 있다.
+     */
     @GetMapping("/by-category")
-    public Map<Long, List<ProductSummaryResponse>> getProductsByCategory() {
+    public Map<String, List<ProductSummaryResponse>> getProductsByCategory() {
         return mainPageService.getProductsByCategory();
     }
 
