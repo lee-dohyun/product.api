@@ -145,6 +145,7 @@ public class MainPageService {
     /**
      * 메인 페이지 프로모션 배너 목록을 반환합니다.
      */
+    @Cacheable(cacheNames = CacheNames.MAIN_BANNERS)
     public List<BannerResponse> getBanners() {
         log.info("[MainPageService/getBanners] 메인 페이지 배너 DB 조회 요청");
         List<Banner> banners = bannerRepository.findAllByIsActiveTrueOrderBySortOrderAsc();

@@ -26,6 +26,9 @@ public final class CacheNames {
     /** 메인 페이지 - 카테고리별 목록. */
     public static final String MAIN_BY_CATEGORY = "main-by-category";
 
+    /** 메인 페이지 - 프로모션 배너 목록. */
+    public static final String MAIN_BANNERS = "main-banners";
+
     private CacheNames() {
     }
 }
