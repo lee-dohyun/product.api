@@ -5,7 +5,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+
+import com.dh.product.config.CacheNames;
 
 import com.dh.product.dto.InventoryDtos.DeductItem;
 import com.dh.product.dto.InventoryDtos.InventoryBalanceResponse;
@@ -35,6 +38,7 @@ public class InventoryDeductionService {
      * 트랜잭션 안에서 잡으면 이미 rollback-only로 표시된 뒤라 이어지는 잔고 조회까지 같이 죽는다.
      * 트랜잭션 경계는 {@link InventoryDeductor}에만 있다.
      */
+    @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
     public List<InventoryBalanceResponse> deductForOrder(Long orderId, List<DeductItem> items) {
         try {
             return deductor.deductOnce(orderId, items);
@@ -46,6 +50,7 @@ public class InventoryDeductionService {
         }
     }
 
+    @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
     public List<InventoryBalanceResponse> restoreForOrder(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
         try {
             return deductor.restoreOnce(orderId, items);

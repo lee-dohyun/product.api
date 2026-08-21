@@ -43,9 +43,9 @@ public class RedisConfig {
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
-                .withCacheConfiguration("main-best", mainConfig)
-                .withCacheConfiguration("main-new", mainConfig)
-                .withCacheConfiguration("main-by-category", mainConfig.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration(CacheNames.MAIN_BEST, mainConfig)
+                .withCacheConfiguration(CacheNames.MAIN_NEW, mainConfig)
+                .withCacheConfiguration(CacheNames.MAIN_BY_CATEGORY, mainConfig.entryTtl(Duration.ofMinutes(10)))
                 .build();
     }
 }

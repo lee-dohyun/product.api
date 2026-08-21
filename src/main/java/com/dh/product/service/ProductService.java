@@ -9,7 +9,10 @@ import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.Cacheable;
+
+import com.dh.product.config.CacheNames;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +49,7 @@ import com.dh.product.repository.ProductVariantRepository;
 @Transactional(readOnly = true)
 public class ProductService {
 
-    private static final String PRODUCT_CACHE = "product";
+    private static final String PRODUCT_CACHE = CacheNames.PRODUCT;
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -124,6 +127,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
     public ProductResponse createProduct(ProductCreateRequest request) {
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new NoSuchElementException("category not found: " + request.categoryId()));
@@ -144,7 +148,11 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#id")
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#id"),
+            @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+                allEntries = true)
+    })
     public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("product not found: " + id));
@@ -168,7 +176,11 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#id")
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#id"),
+            @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+                allEntries = true)
+    })
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("product not found: " + id));
@@ -197,7 +209,11 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId")
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId"),
+            @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+                allEntries = true)
+    })
     public VariantResponse createVariant(Long productId, CreateVariantRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new NoSuchElementException("product not found: " + productId));
@@ -213,7 +229,11 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId")
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId"),
+            @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+                allEntries = true)
+    })
     public VariantResponse updateVariant(Long productId, Long variantId, UpdateVariantRequest request) {
         ProductVariant variant = findVariantOrThrow(productId, variantId);
         variant.setSku(request.sku());
@@ -224,7 +244,11 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId")
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PRODUCT_CACHE, key = "#productId"),
+            @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+                allEntries = true)
+    })
     public void deleteVariant(Long productId, Long variantId) {
         ProductVariant variant = findVariantOrThrow(productId, variantId);
         inventoryService.deleteForVariant(variantId);

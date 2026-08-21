@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
+
+import com.dh.product.config.CacheNames;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,19 +53,19 @@ public class MainPageService {
         this.bannerRepository = bannerRepository;
     }
 
-    @Cacheable(cacheNames = "main-best")
+    @Cacheable(cacheNames = CacheNames.MAIN_BEST)
     public List<ProductSummaryResponse> getBestProducts(int limit) {
         List<Product> products = productRepository.findByOrderByIdDesc(PageRequest.of(0, limit));
         return toSummaryResponses(products);
     }
 
-    @Cacheable(cacheNames = "main-new")
+    @Cacheable(cacheNames = CacheNames.MAIN_NEW)
     public List<ProductSummaryResponse> getNewProducts(int limit) {
         List<Product> products = productRepository.findByOrderByCreatedAtDesc(PageRequest.of(0, limit));
         return toSummaryResponses(products);
     }
 
-    @Cacheable(cacheNames = "main-by-category")
+    @Cacheable(cacheNames = CacheNames.MAIN_BY_CATEGORY)
     public Map<Long, List<ProductSummaryResponse>> getProductsByCategory() {
         // 모든 최상위 카테고리에 대해 최신 상품 2개씩 매핑
         List<Category> categories = categoryRepository.findAll().stream()

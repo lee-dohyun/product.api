@@ -22,6 +22,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.dh.product.config.CacheNames;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
@@ -43,12 +44,25 @@ class InventoryRestorationIntegrationTest {
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
+    /**
+     * 캐시는 이 테스트의 검증 대상이 아니다 - Redis 컨테이너를 띄우지 않으려고 로컬 캐시로 바꾼다.
+     *
+     * <p>다만 <b>애플리케이션이 쓰는 캐시 이름을 모두 선언해야 한다.</b> 이름을 지정한
+     * {@link ConcurrentMapCacheManager}는 목록에 없는 캐시를 요청받으면 예외를 던지므로,
+     * 재고 차감/복원이 메인 페이지 캐시를 무효화하는 순간(product.api#24) 캐시와 무관한
+     * 이 테스트가 함께 깨진다. {@link CacheNames} 상수를 참조해 애플리케이션 쪽에 캐시가
+     * 추가되면 여기도 같이 눈에 띄게 한다.
+     */
     @TestConfiguration
     static class LocalCacheConfig {
         @Bean
         @Primary
         CacheManager testCacheManager() {
-            return new ConcurrentMapCacheManager("product");
+            return new ConcurrentMapCacheManager(
+                    CacheNames.PRODUCT,
+                    CacheNames.MAIN_BEST,
+                    CacheNames.MAIN_NEW,
+                    CacheNames.MAIN_BY_CATEGORY);
         }
     }
 
