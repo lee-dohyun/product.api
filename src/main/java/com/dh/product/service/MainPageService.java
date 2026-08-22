@@ -56,6 +56,12 @@ public class MainPageService {
         this.bannerRepository = bannerRepository;
     }
 
+    /**
+     * 베스트 상품 목록 반환.
+     * <p>현재는 실제 판매량 상위가 아니라 단순 ID 역순으로 반환되어 신상품(getNewProducts)과
+     * 동일한 목록이 반환되는 기술 부채가 있습니다.
+     * <p>TODO: Phase 4에서 order.api의 주문 항목을 N일 롤링으로 집계해 실제 판매량 상위로 교체해야 합니다. (이슈: lee-dohyun/product.api#26)
+     */
     @Cacheable(cacheNames = CacheNames.MAIN_BEST)
     public List<ProductSummaryResponse> getBestProducts(int limit) {
         List<Product> products = productRepository.findByOrderByIdDesc(PageRequest.of(0, limit));
