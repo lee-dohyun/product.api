@@ -16,4 +16,38 @@ public class BannerDtos {
             String link,
             String bgColor
     ) {}
+
+    /**
+     * 관리자용 배너 응답 정보 (순서, 활성 상태 포함)
+     */
+    public record BannerAdminResponse(
+            Long id,
+            String title,
+            String subtitle,
+            String imageUrl,
+            String link,
+            String bgColor,
+            Integer sortOrder,
+            Boolean isActive
+    ) {}
+
+    public record BannerCreateRequest(
+            String title,
+            String subtitle,
+            String imageUrl,
+            String link,
+            String bgColor,
+            Integer sortOrder,
+            Boolean isActive
+    ) {}
+
+    public record BannerUpdateRequest(
+            String title,
+            String subtitle,
+            String imageUrl,
+            String link,
+            String bgColor,
+            Integer sortOrder,
+            Boolean isActive
+    ) {}
 }

@@ -49,4 +49,14 @@ public class Banner {
         this.sortOrder = sortOrder;
         this.isActive = isActive;
     }
+
+    public void update(String title, String subtitle, String imageUrl, String link, String bgColor, Integer sortOrder, Boolean isActive) {
+        this.title = title;
+        this.subtitle = subtitle;
+        this.imageUrl = imageUrl;
+        this.link = link;
+        this.bgColor = bgColor;
+        this.sortOrder = sortOrder;
+        this.isActive = isActive;
+    }
 }
