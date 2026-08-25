@@ -84,7 +84,7 @@ Issue를 조회해 겹치는 작업이 이미 `In Progress`인지 확인하고, 
 
 ## Redis 캐시 — 무효화가 자동이 아니다
 
-캐시 이름은 4개이고 전부 `config/RedisConfig.java`에 있다.
+캐시 이름은 5개이고 전부 `config/RedisConfig.java`(`cacheSpecs(...)`)에 있다(2026-08-25 확인).
 
 | 캐시 | 선언 | 키 | TTL |
 | --- | --- | --- | --- |
@@ -92,17 +92,26 @@ Issue를 조회해 겹치는 작업이 이미 `In Progress`인지 확인하고, 
 | `main-best` | `MainPageService.getBestProducts` | 인자(`limit`) | 5분 |
 | `main-new` | `MainPageService.getNewProducts` | 인자(`limit`) | 5분 |
 | `main-by-category` | `MainPageService.getProductsByCategory` | 인자 없음 | 10분 |
+| `main-banners` | `MainPageService.getBanners` | 인자 없음 | 10분 |
 
-- **`main-*` 세 캐시를 무효화하는 코드는 저장소 어디에도 없다.** 상품 생성/수정/삭제, variant 변경,
-  재고 차감·복원 전부 메인 페이지에는 TTL(5~10분)이 지나야 반영된다. 이건 설계가 아니라 알려진 결함이니
-  해당 쓰기 경로를 건드리면 `@CacheEvict(cacheNames = {"main-best","main-new","main-by-category"},
-  allEntries = true)`를 같이 넣는 쪽을 우선 검토한다(인자 기반 키라 개별 eviction은 안 통한다).
+- **`main-best`/`main-new`/`main-by-category` 무효화는 이미 고쳐졌다**(`e4553eb fix(cache): 메인 페이지
+  캐시 무효화 누락 수정`). `ProductService`(상품/variant 생성·수정·삭제)와 `InventoryDeductionService`
+  (차감·복원) 전부 `@CacheEvict(cacheNames = {"main-best","main-new","main-by-category"}, allEntries =
+  true)`를 갖고 있다(인자 기반 키라 개별 eviction은 안 통해서 `allEntries = true`가 필수). 새 쓰기
+  경로를 추가하면 이 세 캐시도 같이 evict해야 한다.
+- **`main-banners`는 캐시되지만(신규) 아직 무효화하는 쓰기 경로가 없다.** 이 저장소에 배너 생성/수정/삭제
+  API 자체가 아직 없어서 지금은 활성 버그가 아니지만, 배너 관리자 쓰기 엔드포인트를 처음 추가하는 사람이
+  **반드시 같은 커밋에 `@CacheEvict(cacheNames = "main-banners", allEntries = true)`를 넣어야 한다** —
+  안 그러면 위와 똑같은 결함이 재현된다.
 - `product` 캐시는 `ProductService`의 update/delete/variant 계열이 `#id`/`#productId`로 evict하고,
   재고 쪽은 `InventoryDeductor`가 `CacheManager`로 직접 evict한다(`ProductService`를 참조하면 순환
   의존이라 일부러 이렇게 뒀다).
-- `cacheDefaults`의 값 직렬화기는 **`ProductResponse` 고정 타입**이다. `RedisConfig`에
-  `withCacheConfiguration(...)`으로 등록하지 않은 새 캐시 이름을 `@Cacheable`에 쓰면 다른 타입을 담는
-  순간 역직렬화가 깨진다. `main-*` 세 개가 제네릭 직렬화기를 따로 쓰는 이유가 이것이다.
+- **캐시는 전부 고정 타입 직렬화기를 쓴다 — 제네릭(`GenericJackson2JsonRedisSerializer`)은 절대 다시
+  쓰지 않는다.** `main-*` 세 캐시가 예전에 제네릭 직렬화기를 썼다가 `ProductSummaryResponse`(record라
+  암묵적 final)가 리스트 안에 있을 때 타입 id가 안 적혀 **캐시 히트 때만** 역직렬화가 터지는 사고가
+  났다(product.api#33 — 미스에서는 재현 안 되고, store.front가 예외를 삼켜 "그냥 섹션이 없는 것"으로
+  보였다). 새 캐시를 추가할 땐 `cacheSpecs(...)`에 그 타입 전용 `Jackson2JsonRedisSerializer<T>`를
+  등록할 것 — `MainCacheSerializationTest`가 이름 누락은 잡아 주지만 잘못된 직렬화기 종류는 못 잡는다.
 - **배너는 캐시되지 않는다.** `MainPageService.getBanners()`는 매 요청 DB를 친다(캐싱은 미착수, 이 저장소
   Issue #9). "배너 캐시" 전제로 코드를 읽지 말 것.
 - 캐시되는 DTO(`ProductResponse`, `ProductSummaryResponse`)에 필드를 추가/개명하면 이전 모양으로
