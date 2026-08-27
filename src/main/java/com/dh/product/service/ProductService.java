@@ -166,11 +166,20 @@ public class ProductService {
         product.getImages().clear();
         addImages(product, request.imageUrls());
 
-        ProductVariant defaultVariant = productVariantRepository.findByProductId(id).stream()
-                .min(Comparator.comparing(ProductVariant::getId))
-                .orElseThrow(() -> new IllegalStateException("상품에 variant가 없습니다: " + id));
-        defaultVariant.setPrice(request.price());
-        inventoryService.adjustTo(defaultVariant, request.stockQuantity());
+        // request.price()/stockQuantity()는 ProductForm이 GET 응답의 대표값(활성 variant 중
+        // 최저가 / 전 variant 재고 합계)을 그대로 채워 보낸 값이다. SKU가 1개뿐일 때는 그
+        // 대표값이 곧 SKU 값과 같아 안전하지만, SKU가 2개 이상이면 이 요청으로 어느 SKU를
+        // 덮어써야 하는지 알 수 없다 - 과거에는 id가 가장 작은 variant를 임의로 덮어써서
+        // 재고가 부풀고 가격이 뒤바뀌었다(product.api#47). SKU별 가격/재고는 반드시
+        // VariantManager의 PUT /variants/{variantId} 경로로만 바꾼다.
+        List<ProductVariant> activeVariants = productVariantRepository.findByProductId(id).stream()
+                .filter(ProductVariant::isActive)
+                .toList();
+        if (activeVariants.size() == 1) {
+            ProductVariant only = activeVariants.get(0);
+            only.setPrice(request.price());
+            inventoryService.adjustTo(only, request.stockQuantity());
+        }
 
         return toResponse(product);
     }
@@ -221,6 +230,11 @@ public class ProductService {
         ProductVariant variant = new ProductVariant(product, request.sku(), request.price());
         if (request.optionValueIds() != null && !request.optionValueIds().isEmpty()) {
             variant.getOptionValues().addAll(productOptionValueRepository.findAllById(request.optionValueIds()));
+            // createProduct는 옵션 없는 기본 variant를 항상 하나 만든다. 이후 옵션 기반 SKU를
+            // 처음 추가하는 시점에는 그 기본 variant가 더 이상 팔 수 있는 조합이 아니다 -
+            // 매장에서는 안 보이는데(product.front는 옵션 매칭 variant만 노출) 대표가/총재고
+            // 계산에는 계속 잡혀서 재고가 부풀어 보였다(product.api#47). 비활성화해서 제외한다.
+            deactivateOptionlessVariants(productId);
         }
         productVariantRepository.save(variant);
         inventoryService.initialize(variant, request.stockQuantity());
@@ -289,6 +303,13 @@ public class ProductService {
         return productVariantRepository.findById(variantId)
                 .filter(v -> v.getProduct().getId().equals(productId))
                 .orElseThrow(() -> new NoSuchElementException("variant not found: " + variantId));
+    }
+
+    private void deactivateOptionlessVariants(Long productId) {
+        productVariantRepository.findByProductId(productId).stream()
+                .filter(ProductVariant::isActive)
+                .filter(v -> v.getOptionValues().isEmpty())
+                .forEach(v -> v.setActive(false));
     }
 
     private void addImages(Product product, List<String> imageUrls) {

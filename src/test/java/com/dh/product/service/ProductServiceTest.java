@@ -3,6 +3,8 @@ package com.dh.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,9 +19,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductOption;
+import com.dh.product.domain.ProductOptionValue;
 import com.dh.product.domain.ProductVariant;
+import com.dh.product.dto.ProductDtos.CreateVariantRequest;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
+import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
+import com.dh.product.dto.ProductDtos.VariantResponse;
 import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.ProductOptionRepository;
@@ -122,5 +129,103 @@ class ProductServiceTest {
         // then
         assertThat(response.price()).isEqualByComparingTo(BigDecimal.valueOf(1000));
         assertThat(response.stockQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    void updateProduct_WithMultipleActiveVariants_ShouldNotOverwritePriceOrStock() {
+        // given: 색상 2종 SKU를 가진 상품 - product.api#47 재현 조건
+        Category cat = new Category();
+        org.springframework.test.util.ReflectionTestUtils.setField(cat, "id", 10L);
+
+        Product product = new Product();
+        product.setName("Test Product");
+        product.setCategory(cat);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+
+        ProductVariant black = new ProductVariant(product, "sku-black", BigDecimal.valueOf(1000));
+        org.springframework.test.util.ReflectionTestUtils.setField(black, "id", 101L);
+        ProductVariant white = new ProductVariant(product, "sku-white", BigDecimal.valueOf(1200));
+        org.springframework.test.util.ReflectionTestUtils.setField(white, "id", 102L);
+
+        given(productRepository.findById(1L)).willReturn(Optional.of(product));
+        given(categoryRepository.findById(10L)).willReturn(Optional.of(cat));
+        given(productVariantRepository.findByProductId(1L)).willReturn(List.of(black, white));
+        given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
+
+        ProductUpdateRequest request = new ProductUpdateRequest(
+                10L, "Test Product", null, BigDecimal.valueOf(9999), 9999, List.of());
+
+        // when: 편집 화면이 대표값(최저가/합계재고)을 그대로 보낸다
+        productService.updateProduct(1L, request);
+
+        // then: 어느 SKU의 가격/재고도 이 요청으로 바뀌지 않는다
+        assertThat(black.getPrice()).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(white.getPrice()).isEqualByComparingTo(BigDecimal.valueOf(1200));
+        verify(inventoryService, never()).adjustTo(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void updateProduct_WithSingleActiveVariant_ShouldUpdatePriceAndStock() {
+        // given
+        Category cat = new Category();
+        org.springframework.test.util.ReflectionTestUtils.setField(cat, "id", 10L);
+
+        Product product = new Product();
+        product.setName("Test Product");
+        product.setCategory(cat);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+
+        ProductVariant only = new ProductVariant(product, null, BigDecimal.valueOf(1000));
+        org.springframework.test.util.ReflectionTestUtils.setField(only, "id", 101L);
+
+        given(productRepository.findById(1L)).willReturn(Optional.of(product));
+        given(categoryRepository.findById(10L)).willReturn(Optional.of(cat));
+        given(productVariantRepository.findByProductId(1L)).willReturn(List.of(only));
+        given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
+
+        ProductUpdateRequest request = new ProductUpdateRequest(
+                10L, "Test Product", null, BigDecimal.valueOf(1500), 20, List.of());
+
+        // when
+        productService.updateProduct(1L, request);
+
+        // then: SKU가 1개뿐이면 대표값 = SKU 값이라 그대로 반영해도 안전하다
+        assertThat(only.getPrice()).isEqualByComparingTo(BigDecimal.valueOf(1500));
+        verify(inventoryService).adjustTo(only, 20);
+    }
+
+    @Test
+    void createVariant_WithOptionValues_ShouldDeactivateOptionlessDefaultVariant() {
+        // given: createProduct가 만든 옵션 없는 기본 variant가 남아 있는 상태
+        Category cat = new Category();
+        org.springframework.test.util.ReflectionTestUtils.setField(cat, "id", 10L);
+
+        Product product = new Product();
+        product.setName("Test Product");
+        product.setCategory(cat);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+
+        ProductVariant defaultVariant = new ProductVariant(product, null, BigDecimal.valueOf(1000));
+        org.springframework.test.util.ReflectionTestUtils.setField(defaultVariant, "id", 101L);
+        assertThat(defaultVariant.isActive()).isTrue();
+
+        ProductOption color = new ProductOption(product, "색상");
+        org.springframework.test.util.ReflectionTestUtils.setField(color, "id", 201L);
+        ProductOptionValue black = new ProductOptionValue(color, "블랙");
+        org.springframework.test.util.ReflectionTestUtils.setField(black, "id", 301L);
+
+        given(productRepository.findById(1L)).willReturn(Optional.of(product));
+        given(productOptionValueRepository.findAllById(List.of(301L))).willReturn(List.of(black));
+        // deactivateOptionlessVariants가 다시 조회할 때는 기본 variant만 존재(신규 variant는 아직 미저장)
+        given(productVariantRepository.findByProductId(1L)).willReturn(List.of(defaultVariant));
+
+        CreateVariantRequest request = new CreateVariantRequest("sku-black", BigDecimal.valueOf(1000), 5, List.of(301L));
+
+        // when
+        VariantResponse response = productService.createVariant(1L, request);
+
+        // then: 새 SKU는 옵션값을 갖고, 옵션 없는 기본 variant는 비활성화된다
+        assertThat(response.optionValues()).hasSize(1);
+        assertThat(defaultVariant.isActive()).isFalse();
     }
 }
