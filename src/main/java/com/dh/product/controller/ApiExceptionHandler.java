@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.dh.product.service.rag.RagUnavailableException;
+
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
@@ -18,5 +20,10 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<String> handleConflict(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RagUnavailableException.class)
+    public ResponseEntity<String> handleRagUnavailable(RagUnavailableException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(e.getMessage());
     }
 }

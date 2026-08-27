@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.cache.annotation.CacheEvict;
@@ -91,6 +92,27 @@ public class ProductService {
             products = productRepository.findAll();
         }
 
+        return toSummaries(products);
+    }
+
+    /**
+     * RAG 검색(product.api#46)처럼 특정 id 목록을 관련도 순서 그대로 요약 조회할 때 쓴다.
+     * {@code findAllById}는 순서를 보장하지 않으므로 입력 순서를 기준으로 재정렬한다.
+     */
+    public List<ProductSummaryResponse> getSummariesByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Product> byId = productRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+        List<Product> orderedProducts = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .toList();
+        return toSummaries(orderedProducts);
+    }
+
+    private List<ProductSummaryResponse> toSummaries(List<Product> products) {
         if (products.isEmpty()) {
             return List.of();
         }
