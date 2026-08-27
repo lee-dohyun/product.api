@@ -39,6 +39,11 @@ public class ProductDtos {
     // 단일 상품 조회 응답 - Redis에 JSON으로 캐싱되므로 Serializable
     // price/stockQuantity는 저장된 값이 아니라 활성 variant로부터 매번 계산된다
     // (price=최저가, stockQuantity=합계) - 목록/카드 UI가 대표값 하나를 그대로 쓸 수 있도록.
+    //
+    // listPrice 이하 6개는 product.api#28(노출 속성) 추가분. 할인율은 저장하지 않고
+    // listPrice와 price(판매가)로 매번 파생한다 - 둘을 따로 저장하면 갈라질 수 있다.
+    // ratingAvg/reviewCount는 리뷰 기능이 없는 동안의 비정규화 컬럼이다(관리자가 직접 입력) -
+    // 리뷰 기능이 생기면 실제 집계값으로 교체될 자리다.
     public record ProductResponse(
             Long id,
             CategoryResponse category,
@@ -50,7 +55,13 @@ public class ProductDtos {
             List<OptionResponse> options,
             List<VariantResponse> variants,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt) implements Serializable {
+            LocalDateTime updatedAt,
+            BigDecimal listPrice,
+            BigDecimal ratingAvg,
+            Integer reviewCount,
+            String shippingBadge,
+            boolean freeShipping,
+            String brand) implements Serializable {
     }
 
     public record ProductSummaryResponse(
@@ -59,7 +70,13 @@ public class ProductDtos {
             String name,
             BigDecimal price,
             Integer stockQuantity,
-            String thumbnailUrl) {
+            String thumbnailUrl,
+            BigDecimal listPrice,
+            BigDecimal ratingAvg,
+            Integer reviewCount,
+            String shippingBadge,
+            boolean freeShipping,
+            String brand) {
     }
 
     public record ProductCreateRequest(
@@ -68,7 +85,13 @@ public class ProductDtos {
             String description,
             @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
             @NotNull @Min(0) Integer stockQuantity,
-            List<String> imageUrls) {
+            List<String> imageUrls,
+            @DecimalMin(value = "0", inclusive = true) BigDecimal listPrice,
+            @DecimalMin(value = "0", inclusive = true) BigDecimal ratingAvg,
+            @Min(0) Integer reviewCount,
+            String shippingBadge,
+            boolean freeShipping,
+            String brand) {
     }
 
     public record ProductUpdateRequest(
@@ -77,7 +100,13 @@ public class ProductDtos {
             String description,
             @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
             @NotNull @Min(0) Integer stockQuantity,
-            List<String> imageUrls) {
+            List<String> imageUrls,
+            @DecimalMin(value = "0", inclusive = true) BigDecimal listPrice,
+            @DecimalMin(value = "0", inclusive = true) BigDecimal ratingAvg,
+            @Min(0) Integer reviewCount,
+            String shippingBadge,
+            boolean freeShipping,
+            String brand) {
     }
 
     public record CategoryCreateRequest(@NotBlank String name, Long parentId) {

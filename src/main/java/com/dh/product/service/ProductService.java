@@ -113,7 +113,13 @@ public class ProductService {
                             p.getName(),
                             representativePrice(variants),
                             totalStock(variants, stockByVariant),
-                            p.getImages().isEmpty() ? null : p.getImages().get(0).getImageUrl());
+                            p.getImages().isEmpty() ? null : p.getImages().get(0).getImageUrl(),
+                            p.getListPrice(),
+                            p.getRatingAvg(),
+                            p.getReviewCount(),
+                            p.getShippingBadge(),
+                            p.isFreeShipping(),
+                            p.getBrand());
                 })
                 .toList();
     }
@@ -136,6 +142,8 @@ public class ProductService {
         product.setCategory(category);
         product.setName(request.name());
         product.setDescription(request.description());
+        applyDisplayAttributes(product, request.listPrice(), request.ratingAvg(), request.reviewCount(),
+                request.shippingBadge(), request.freeShipping(), request.brand());
         addImages(product, request.imageUrls());
 
         Product saved = productRepository.save(product);
@@ -162,6 +170,8 @@ public class ProductService {
         product.setCategory(category);
         product.setName(request.name());
         product.setDescription(request.description());
+        applyDisplayAttributes(product, request.listPrice(), request.ratingAvg(), request.reviewCount(),
+                request.shippingBadge(), request.freeShipping(), request.brand());
 
         product.getImages().clear();
         addImages(product, request.imageUrls());
@@ -374,7 +384,23 @@ public class ProductService {
                 optionResponses,
                 variantResponses,
                 product.getCreatedAt(),
-                product.getUpdatedAt());
+                product.getUpdatedAt(),
+                product.getListPrice(),
+                product.getRatingAvg(),
+                product.getReviewCount(),
+                product.getShippingBadge(),
+                product.isFreeShipping(),
+                product.getBrand());
+    }
+
+    private void applyDisplayAttributes(Product product, BigDecimal listPrice, BigDecimal ratingAvg,
+            Integer reviewCount, String shippingBadge, boolean freeShipping, String brand) {
+        product.setListPrice(listPrice);
+        product.setRatingAvg(ratingAvg);
+        product.setReviewCount(reviewCount != null ? reviewCount : 0);
+        product.setShippingBadge(shippingBadge);
+        product.setFreeShipping(freeShipping);
+        product.setBrand(brand);
     }
 
     private VariantResponse toVariantResponse(ProductVariant variant, int stockQuantity) {
