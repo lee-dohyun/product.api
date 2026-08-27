@@ -153,7 +153,8 @@ class ProductServiceTest {
         given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
 
         ProductUpdateRequest request = new ProductUpdateRequest(
-                10L, "Test Product", null, BigDecimal.valueOf(9999), 9999, List.of());
+                10L, "Test Product", null, BigDecimal.valueOf(9999), 9999, List.of(),
+                null, null, null, null, false, null);
 
         // when: 편집 화면이 대표값(최저가/합계재고)을 그대로 보낸다
         productService.updateProduct(1L, request);
@@ -184,7 +185,8 @@ class ProductServiceTest {
         given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
 
         ProductUpdateRequest request = new ProductUpdateRequest(
-                10L, "Test Product", null, BigDecimal.valueOf(1500), 20, List.of());
+                10L, "Test Product", null, BigDecimal.valueOf(1500), 20, List.of(),
+                null, null, null, null, false, null);
 
         // when
         productService.updateProduct(1L, request);

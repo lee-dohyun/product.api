@@ -193,7 +193,13 @@ public class MainPageService {
                             p.getName(),
                             representativePrice(variants),
                             totalStock(variants, stockByVariant),
-                            p.getImages().isEmpty() ? null : p.getImages().get(0).getImageUrl());
+                            p.getImages().isEmpty() ? null : p.getImages().get(0).getImageUrl(),
+                            p.getListPrice(),
+                            p.getRatingAvg(),
+                            p.getReviewCount(),
+                            p.getShippingBadge(),
+                            p.isFreeShipping(),
+                            p.getBrand());
                 })
                 .toList();
     }
