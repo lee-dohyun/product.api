@@ -19,6 +19,7 @@ import org.testcontainers.utility.DockerImageName;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Channel;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.repository.ProductEmbeddingRepository.NearestMatch;
 
 /**
@@ -46,6 +47,8 @@ class ProductEmbeddingRepositoryIntegrationTest {
     private CategoryRepository categoryRepository;
     @Autowired
     private ProductRepository productRepository;
+    @Autowired
+    private SellerRepository sellerRepository;
 
     private Long productAId;
     private Long productBId;
@@ -78,6 +81,10 @@ class ProductEmbeddingRepositoryIntegrationTest {
         Product product = new Product();
         product.setCategory(category);
         product.setName(name);
+        // products.seller_id/status 는 V14(product.api#29)부터 NOT NULL 이다. 자사 판매자(id=1)는
+        // 같은 마이그레이션이 시드하므로 여기서 만들지 않고 조회해서 붙인다.
+        product.setSeller(sellerRepository.findById(1L).orElseThrow());
+        product.setStatus(ProductStatus.LIVE);
         productRepository.save(product);
         return product.getId();
     }
