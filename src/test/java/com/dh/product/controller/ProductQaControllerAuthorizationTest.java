@@ -38,11 +38,11 @@ class ProductQaControllerAuthorizationTest {
     @MockitoBean
     private com.dh.product.config.AdminJwtVerifier adminJwtVerifier;
 
+    // CategoryController 는 리포지토리가 아니라 CategoryService 에 의존한다(product.api#61).
+    // 이 테스트가 보는 것은 인터셉터 배선뿐이라 서비스 동작은 필요 없지만, 빈이 없으면
+    // @WebMvcTest 컨텍스트 자체가 뜨지 않는다.
     @MockitoBean
-    private com.dh.product.repository.CategoryRepository categoryRepository;
-
-    @MockitoBean
-    private com.dh.product.repository.ChannelRepository channelRepository;
+    private com.dh.product.service.CategoryService categoryService;
 
     @Test
     @DisplayName("고객 Q&A 는 staff 토큰 없이 호출할 수 있다")

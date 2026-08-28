@@ -12,7 +12,7 @@ import jakarta.validation.constraints.NotNull;
 
 public class ProductDtos {
 
-    public record CategoryResponse(Long id, String name, Long parentId) {
+    public record CategoryResponse(Long id, String name, Long parentId, Short sortOrder) {
     }
 
     public record ProductImageResponse(Long id, String imageUrl, Short sortOrder) {
@@ -119,6 +119,14 @@ public class ProductDtos {
     }
 
     public record CategoryCreateRequest(@NotBlank String name, Long parentId) {
+    }
+
+    /**
+     * 카테고리 수정 요청. 세 필드 모두 "보낸 것만 바꾼다"가 아니라 전체 교체다 -
+     * 부분 수정(PATCH)으로 만들면 parentId 를 null 로 보내는 것이 "최상위로 올려라"인지
+     * "건드리지 마라"인지 구분할 수 없다. PUT 으로 두고 화면이 항상 현재값을 채워 보낸다.
+     */
+    public record CategoryUpdateRequest(@NotBlank String name, Long parentId, Short sortOrder) {
     }
 
     public record CreateOptionRequest(@NotBlank String name) {
