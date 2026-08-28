@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Primary;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import com.dh.product.config.CacheNames;
 import com.dh.product.domain.Category;
@@ -54,7 +55,11 @@ class SellerLifecycleIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    // 이 테스트 자체는 vector 확장을 쓰지 않는다. 다만 product.api#46(PR #51)이 머지되면
+    // V15 가 CREATE EXTENSION vector 를 하고, 그 시점부터 이 저장소의 모든 @SpringBootTest 가
+    // Flyway 마이그레이션 단계에서 부팅에 실패한다 - 머지 순서와 무관하게 깨지지 않도록 미리 맞춘다.
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     @TestConfiguration
     static class LocalCacheConfig {
