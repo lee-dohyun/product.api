@@ -61,7 +61,10 @@ public class ProductDtos {
             Integer reviewCount,
             String shippingBadge,
             boolean freeShipping,
-            String brand) implements Serializable {
+            String brand,
+            Long sellerId,
+            String sellerName,
+            String status) implements Serializable {
     }
 
     public record ProductSummaryResponse(
@@ -91,7 +94,10 @@ public class ProductDtos {
             @Min(0) Integer reviewCount,
             String shippingBadge,
             boolean freeShipping,
-            String brand) {
+            String brand,
+            // 둘 다 생략 가능 - null이면 서비스가 sellerId=1(자사)/status=LIVE로 채운다(product.api#29).
+            Long sellerId,
+            String status) {
     }
 
     public record ProductUpdateRequest(
@@ -106,7 +112,10 @@ public class ProductDtos {
             @Min(0) Integer reviewCount,
             String shippingBadge,
             boolean freeShipping,
-            String brand) {
+            String brand,
+            // 둘 다 생략 가능(null) - 그러면 기존 값을 유지한다.
+            Long sellerId,
+            String status) {
     }
 
     public record CategoryCreateRequest(@NotBlank String name, Long parentId) {

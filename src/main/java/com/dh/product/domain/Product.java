@@ -8,6 +8,8 @@ import java.util.List;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -70,6 +72,18 @@ public class Product {
 
     @Column(length = 100)
     private String brand;
+
+    // 판매자 귀속(product.api#29). order_items.seller_id(order.api#13)와 달리 스냅샷이 아니라
+    // 참조다 - "지금 이 상품의 주인이 누구인가"는 항상 최신이어야 한다.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private Seller seller;
+
+    // 노출 스위치(product.api#29). SellerStatus와 달리 전이 검증이 없다 - 관리자가 임의로
+    // 바꿀 수 있다. 삭제(하드 딜리트)가 유일한 판매중지 수단이던 것을 대체한다.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ProductStatus status;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")

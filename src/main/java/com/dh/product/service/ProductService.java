@@ -23,7 +23,9 @@ import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductImage;
 import com.dh.product.domain.ProductOption;
 import com.dh.product.domain.ProductOptionValue;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
+import com.dh.product.domain.Seller;
 import com.dh.product.dto.ProductDtos.CategoryResponse;
 import com.dh.product.dto.ProductDtos.CreateOptionRequest;
 import com.dh.product.dto.ProductDtos.CreateOptionValueRequest;
@@ -45,12 +47,17 @@ import com.dh.product.repository.ProductOptionRepository;
 import com.dh.product.repository.ProductOptionValueRepository;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.repository.SellerRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class ProductService {
 
     private static final String PRODUCT_CACHE = CacheNames.PRODUCT;
+
+    // 자사 판매자. V14 가 id=1 로 시드하고 order.api V6 의 order_items.seller_id=1 과 맞춰 둔 값이다
+    // (product.api#29). 협력사 포털이 생기기 전까지 등록되는 상품은 전부 여기에 귀속된다.
+    private static final Long FIRST_PARTY_SELLER_ID = 1L;
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -59,6 +66,7 @@ public class ProductService {
     private final ProductOptionValueRepository productOptionValueRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryService inventoryService;
+    private final SellerRepository sellerRepository;
 
     public ProductService(
             ProductRepository productRepository,
@@ -67,7 +75,8 @@ public class ProductService {
             ProductOptionRepository productOptionRepository,
             ProductOptionValueRepository productOptionValueRepository,
             InventoryRepository inventoryRepository,
-            InventoryService inventoryService) {
+            InventoryService inventoryService,
+            SellerRepository sellerRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
@@ -75,6 +84,7 @@ public class ProductService {
         this.productOptionValueRepository = productOptionValueRepository;
         this.inventoryRepository = inventoryRepository;
         this.inventoryService = inventoryService;
+        this.sellerRepository = sellerRepository;
     }
 
     public List<ProductSummaryResponse> listProducts(Long categoryId, String q) {
@@ -166,6 +176,11 @@ public class ProductService {
         product.setDescription(request.description());
         applyDisplayAttributes(product, request.listPrice(), request.ratingAvg(), request.reviewCount(),
                 request.shippingBadge(), request.freeShipping(), request.brand());
+        // 판매자/노출상태는 생략 가능하다(product.api#29). admin.front 의 상품 등록 폼은 아직 이 두
+        // 값을 보내지 않으므로, null 이면 지금까지의 동작(자사 판매 / 즉시 노출)을 그대로 유지한다 -
+        // 필수로 만들면 폼을 고치기 전까지 상품 등록이 전부 깨진다.
+        product.setSeller(resolveSeller(request.sellerId()));
+        product.setStatus(request.status() != null ? ProductStatus.valueOf(request.status()) : ProductStatus.LIVE);
         addImages(product, request.imageUrls());
 
         Product saved = productRepository.save(product);
@@ -194,6 +209,14 @@ public class ProductService {
         product.setDescription(request.description());
         applyDisplayAttributes(product, request.listPrice(), request.ratingAvg(), request.reviewCount(),
                 request.shippingBadge(), request.freeShipping(), request.brand());
+        // null 은 "안 보냈다"이지 "비우라"가 아니다 - 기존 값을 유지한다(product.api#47 과 같은 이유로,
+        // 폼이 채우지 않은 필드가 조용히 초기화되면 안 된다).
+        if (request.sellerId() != null) {
+            product.setSeller(resolveSeller(request.sellerId()));
+        }
+        if (request.status() != null) {
+            product.setStatus(ProductStatus.valueOf(request.status()));
+        }
 
         product.getImages().clear();
         addImages(product, request.imageUrls());
@@ -412,7 +435,17 @@ public class ProductService {
                 product.getReviewCount(),
                 product.getShippingBadge(),
                 product.isFreeShipping(),
-                product.getBrand());
+                product.getBrand(),
+                product.getSeller().getId(),
+                product.getSeller().getName(),
+                product.getStatus().name());
+    }
+
+    /** sellerId 가 null 이면 자사 판매자로 본다. 존재하지 않는 id 면 조용히 넘기지 않고 실패시킨다. */
+    private Seller resolveSeller(Long sellerId) {
+        Long id = sellerId != null ? sellerId : FIRST_PARTY_SELLER_ID;
+        return sellerRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("seller not found: " + id));
     }
 
     private void applyDisplayAttributes(Product product, BigDecimal listPrice, BigDecimal ratingAvg,

@@ -86,7 +86,8 @@ class MainCacheSerializationTest {
                 new CategoryResponse(9101L, "상의", 9001L),
                 "포스베이직 오버핏 반팔 티셔츠", "설명",
                 new BigDecimal("22100.00"), 40, List.of(), List.of(), List.of(), now, now,
-                new BigDecimal("29900.00"), new BigDecimal("4.5"), 128, "로켓배송", true, "포스베이직");
+                new BigDecimal("29900.00"), new BigDecimal("4.5"), 128, "로켓배송", true, "포스베이직",
+                1L, "포스셀렉트", "LIVE");
 
         ProductResponse restored = roundTrip(RedisConfig.productSerializer(mapper), original);
 

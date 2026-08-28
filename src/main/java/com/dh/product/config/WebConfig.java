@@ -21,7 +21,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(adminAuthInterceptor)
-                .addPathPatterns("/api/products/**", "/api/categories/**");
+                .addPathPatterns("/api/products/**", "/api/categories/**", "/api/sellers/**");
     }
 
     // posselect-shell(런타임 셸)의 Header/Footer 위젯이 customer.posselect.com/home.posselect.com
