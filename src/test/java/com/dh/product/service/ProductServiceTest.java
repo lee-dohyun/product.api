@@ -21,7 +21,9 @@ import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductOption;
 import com.dh.product.domain.ProductOptionValue;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
+import com.dh.product.domain.Seller;
 import com.dh.product.dto.ProductDtos.CreateVariantRequest;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
@@ -33,6 +35,7 @@ import com.dh.product.repository.ProductOptionRepository;
 import com.dh.product.repository.ProductOptionValueRepository;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.repository.SellerRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
@@ -51,6 +54,8 @@ class ProductServiceTest {
     private InventoryRepository inventoryRepository;
     @Mock
     private InventoryService inventoryService;
+    @Mock
+    private SellerRepository sellerRepository;
 
     @InjectMocks
     private ProductService productService;
@@ -66,6 +71,7 @@ class ProductServiceTest {
         product.setDescription("Desc");
         product.setCategory(cat);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+        attachFirstPartySeller(product);
 
         // variant1 is active, price 500
         ProductVariant variant1 = new ProductVariant(product, "v1", BigDecimal.valueOf(500));
@@ -109,6 +115,7 @@ class ProductServiceTest {
         product.setDescription("Desc");
         product.setCategory(cat);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+        attachFirstPartySeller(product);
 
         ProductVariant variant1 = new ProductVariant(product, "v1", BigDecimal.valueOf(1000));
         org.springframework.test.util.ReflectionTestUtils.setField(variant1, "id", 101L);
@@ -141,6 +148,7 @@ class ProductServiceTest {
         product.setName("Test Product");
         product.setCategory(cat);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+        attachFirstPartySeller(product);
 
         ProductVariant black = new ProductVariant(product, "sku-black", BigDecimal.valueOf(1000));
         org.springframework.test.util.ReflectionTestUtils.setField(black, "id", 101L);
@@ -154,7 +162,7 @@ class ProductServiceTest {
 
         ProductUpdateRequest request = new ProductUpdateRequest(
                 10L, "Test Product", null, BigDecimal.valueOf(9999), 9999, List.of(),
-                null, null, null, null, false, null);
+                null, null, null, null, false, null, null, null);
 
         // when: 편집 화면이 대표값(최저가/합계재고)을 그대로 보낸다
         productService.updateProduct(1L, request);
@@ -175,6 +183,7 @@ class ProductServiceTest {
         product.setName("Test Product");
         product.setCategory(cat);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+        attachFirstPartySeller(product);
 
         ProductVariant only = new ProductVariant(product, null, BigDecimal.valueOf(1000));
         org.springframework.test.util.ReflectionTestUtils.setField(only, "id", 101L);
@@ -186,7 +195,7 @@ class ProductServiceTest {
 
         ProductUpdateRequest request = new ProductUpdateRequest(
                 10L, "Test Product", null, BigDecimal.valueOf(1500), 20, List.of(),
-                null, null, null, null, false, null);
+                null, null, null, null, false, null, null, null);
 
         // when
         productService.updateProduct(1L, request);
@@ -206,6 +215,7 @@ class ProductServiceTest {
         product.setName("Test Product");
         product.setCategory(cat);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 1L);
+        attachFirstPartySeller(product);
 
         ProductVariant defaultVariant = new ProductVariant(product, null, BigDecimal.valueOf(1000));
         org.springframework.test.util.ReflectionTestUtils.setField(defaultVariant, "id", 101L);
@@ -229,5 +239,17 @@ class ProductServiceTest {
         // then: 새 SKU는 옵션값을 갖고, 옵션 없는 기본 variant는 비활성화된다
         assertThat(response.optionValues()).hasSize(1);
         assertThat(defaultVariant.isActive()).isFalse();
+    }
+
+    /**
+     * products.seller_id/status 는 V14 부터 NOT NULL 이다(product.api#29) - DB 에 판매자 없는 상품은
+     * 존재할 수 없으므로 toResponse 도 null 을 방어하지 않는다. 픽스처를 그 현실에 맞춘다.
+     */
+    private static void attachFirstPartySeller(Product product) {
+        Seller seller = new Seller();
+        org.springframework.test.util.ReflectionTestUtils.setField(seller, "id", 1L);
+        seller.setName("포스셀렉트");
+        product.setSeller(seller);
+        product.setStatus(ProductStatus.LIVE);
     }
 }

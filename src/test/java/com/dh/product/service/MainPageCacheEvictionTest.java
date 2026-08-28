@@ -24,6 +24,7 @@ import com.dh.product.config.CacheNames;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.InventoryDtos.DeductItem;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
@@ -32,6 +33,7 @@ import com.dh.product.repository.ChannelRepository;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.InventoryTransactionRepository;
 import com.dh.product.repository.ProductRepository;
+import com.dh.product.repository.SellerRepository;
 import com.dh.product.repository.ProductVariantRepository;
 
 /**
@@ -74,6 +76,7 @@ class MainPageCacheEvictionTest {
     @Autowired private CacheManager cacheManager;
     @Autowired private CategoryRepository categoryRepository;
     @Autowired private ProductRepository productRepository;
+    @Autowired private SellerRepository sellerRepository;
     @Autowired private ProductVariantRepository variantRepository;
     @Autowired private InventoryRepository inventoryRepository;
     @Autowired private InventoryTransactionRepository inventoryTransactionRepository;
@@ -104,6 +107,10 @@ class MainPageCacheEvictionTest {
         Product product = new Product();
         product.setCategory(category);
         product.setName("테스트 상품");
+        // products.seller_id/status 는 V14 부터 NOT NULL 이다(product.api#29). 자사 판매자(id=1)는
+        // 같은 마이그레이션이 시드하므로 여기서 만들지 않고 조회해서 붙인다.
+        product.setSeller(sellerRepository.findById(1L).orElseThrow());
+        product.setStatus(ProductStatus.LIVE);
         productRepository.save(product);
 
         ProductVariant variant = new ProductVariant(product, "SKU-TEST-1", new BigDecimal("10000.00"));
@@ -170,7 +177,7 @@ class MainPageCacheEvictionTest {
 
         productService.createProduct(new ProductCreateRequest(
                 categoryId, "새 상품", "설명", new BigDecimal("5000"), 10, List.of(),
-                null, null, null, null, false, null));
+                null, null, null, null, false, null, null, null));
 
         assertThat(cachedCount()).isZero();
     }
@@ -180,7 +187,7 @@ class MainPageCacheEvictionTest {
     void deleteProductEvictsMainCaches() {
         Long newProductId = productService.createProduct(new ProductCreateRequest(
                 categoryId, "지울 상품", "설명", new BigDecimal("5000"), 10, List.of(),
-                null, null, null, null, false, null)).id();
+                null, null, null, null, false, null, null, null)).id();
         warmMainCaches();
 
         productService.deleteProduct(newProductId);
