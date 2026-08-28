@@ -41,3 +41,9 @@ admin:
 
 app:
   cors-allowed-origin-pattern: ${CORS_ALLOWED_ORIGIN_PATTERN:https://*.posselect.com}
+
+# RAG 상품 Q&A(product.api#46). 키 미설정 시 부팅은 정상, 호출 시점에 503(RagUnavailableException).
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+  chat-model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
