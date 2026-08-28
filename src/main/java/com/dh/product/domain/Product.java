@@ -1,5 +1,6 @@
 package com.dh.product.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,27 @@ public class Product {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    // 노출 속성(product.api#28) - 할인율은 저장하지 않고 listPrice와 판매가로 매번 파생한다.
+    // ratingAvg/reviewCount는 리뷰 기능이 없는 동안 관리자가 직접 입력하는 비정규화 컬럼이다 -
+    // 리뷰 기능이 생기면 실제 집계값으로 교체될 자리다.
+    @Column(name = "list_price", precision = 12, scale = 2)
+    private BigDecimal listPrice;
+
+    @Column(name = "rating_avg", precision = 2, scale = 1)
+    private BigDecimal ratingAvg;
+
+    @Column(name = "review_count", nullable = false)
+    private int reviewCount = 0;
+
+    @Column(name = "shipping_badge", length = 20)
+    private String shippingBadge;
+
+    @Column(name = "free_shipping", nullable = false)
+    private boolean freeShipping = false;
+
+    @Column(length = 100)
+    private String brand;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")

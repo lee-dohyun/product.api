@@ -173,7 +173,8 @@ class MainPageCacheEvictionTest {
         warmMainCaches();
 
         productService.createProduct(new ProductCreateRequest(
-                categoryId, "새 상품", "설명", new BigDecimal("5000"), 10, List.of()));
+                categoryId, "새 상품", "설명", new BigDecimal("5000"), 10, List.of(),
+                null, null, null, null, false, null));
 
         assertThat(cachedCount()).isZero();
     }
@@ -182,7 +183,8 @@ class MainPageCacheEvictionTest {
     @DisplayName("상품 삭제가 메인 페이지 캐시를 무효화한다")
     void deleteProductEvictsMainCaches() {
         Long newProductId = productService.createProduct(new ProductCreateRequest(
-                categoryId, "지울 상품", "설명", new BigDecimal("5000"), 10, List.of())).id();
+                categoryId, "지울 상품", "설명", new BigDecimal("5000"), 10, List.of(),
+                null, null, null, null, false, null)).id();
         warmMainCaches();
 
         productService.deleteProduct(newProductId);
