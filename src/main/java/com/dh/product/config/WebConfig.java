@@ -18,10 +18,16 @@ public class WebConfig implements WebMvcConfigurer {
         this.adminAuthInterceptor = adminAuthInterceptor;
     }
 
+    // /api/products/qa 는 경로만 관리 영역 아래에 있을 뿐 고객용 POST 다(product.api#58).
+    // 인터셉터는 GET 만 공개하고 나머지 메서드에 staff 토큰 + PRODUCT_MANAGER 를 요구하므로
+    // 제외하지 않으면 고객이 영영 호출할 수 없다. 제외는 이 경로 하나로 좁게 둔다 — 하위 경로가
+    // 생기면 AdminAuthInterceptor 의 __UNCONFIGURED__ 규칙에 걸려 거부되는 쪽(fail-closed)이
+    // 맞고, 그때 공개가 필요하면 여기에 명시적으로 추가할 것.
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(adminAuthInterceptor)
-                .addPathPatterns("/api/products/**", "/api/categories/**", "/api/sellers/**");
+                .addPathPatterns("/api/products/**", "/api/categories/**", "/api/sellers/**")
+                .excludePathPatterns("/api/products/qa");
     }
 
     // posselect-shell(런타임 셸)의 Header/Footer 위젯이 customer.posselect.com/home.posselect.com
