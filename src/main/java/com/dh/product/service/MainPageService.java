@@ -90,7 +90,10 @@ public class MainPageService {
      */
     @Cacheable(cacheNames = CacheNames.MAIN_BY_CATEGORY)
     public Map<String, List<ProductSummaryResponse>> getProductsByCategory() {
-        List<Category> all = categoryRepository.findAll();
+        // findAll() 이 아니라 정렬 조회를 쓴다. 아래 picked 는 LinkedHashMap 이라 순회 순서가
+        // 그대로 응답 맵의 키 순서가 되고, store.front 메인 페이지의 카테고리 섹션 순서가 된다 -
+        // 정렬이 없으면 그 순서가 힙 순서(비결정적)를 따라간다.
+        List<Category> all = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
         if (all.isEmpty()) {
             return Map.of();
         }
