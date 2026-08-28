@@ -25,7 +25,7 @@ import com.dh.product.repository.ProductEmbeddingRepository.NearestMatch;
  * pgvector 확장이 실제로 동작하는지 실DB로 검증한다(product.api#46) — API 키 없이도 검증 가능한
  * 부분(스키마/SQL 정합성)만 다룬다. 임베딩 API 호출 자체는 별도 유닛 테스트에서 모킹으로 검증한다.
  *
- * <p>stock postgres 이미지가 아니라 pgvector 확장이 컴파일된 이미지를 써야 V11 마이그레이션의
+ * <p>stock postgres 이미지가 아니라 pgvector 확장이 컴파일된 이미지를 써야 V15 마이그레이션의
  * {@code CREATE EXTENSION vector}가 통과한다 — Testcontainers 기본 계정(test)은 컨테이너 안에서
  * superuser라 라이브 catalogdb(non-superuser catalog_user)와 달리 이 계정으로도 확장 설치가 된다.
  */

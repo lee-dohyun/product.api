@@ -43,7 +43,7 @@ class InventoryRestorationIntegrationTest {
 
     @Container
     @ServiceConnection
-    // V11(product.api#46)부터 Flyway 히스토리에 vector 확장이 포함돼, 확장 없는 stock 이미지로는
+    // V15(product.api#46)부터 Flyway 히스토리에 vector 확장이 포함돼, 확장 없는 stock 이미지로는
     // 이 테스트 자체와 무관하게 Flyway 마이그레이션 단계에서 컨텍스트 부팅이 실패한다.
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));

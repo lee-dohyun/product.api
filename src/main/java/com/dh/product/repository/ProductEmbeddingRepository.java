@@ -45,7 +45,7 @@ public class ProductEmbeddingRepository {
 
     /**
      * 코사인 거리(`<=>`) 기준 최근접 topK. 카탈로그가 데모 규모라 근사 인덱스 없이 시퀀셜
-     * 스캔으로 충분하다(V11 마이그레이션 주석 참고).
+     * 스캔으로 충분하다(V15 마이그레이션 주석 참고).
      */
     public List<NearestMatch> findNearest(float[] queryEmbedding, int topK) {
         return jdbcTemplate.query(
