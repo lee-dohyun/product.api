@@ -33,7 +33,8 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     private static final Map<String, String> PATH_ROLES = Map.of(
             "/api/products", "PRODUCT_MANAGER",
             "/api/categories", "PRODUCT_MANAGER",
-            "/api/sellers", "PARTNER");
+            "/api/sellers", "PARTNER",
+            "/api/submissions", "PRODUCT_MANAGER");
 
     private final AdminJwtVerifier verifier;
 
