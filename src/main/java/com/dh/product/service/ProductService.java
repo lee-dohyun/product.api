@@ -47,6 +47,7 @@ import com.dh.product.repository.ProductOptionRepository;
 import com.dh.product.repository.ProductOptionValueRepository;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.service.offer.OfferService;
 import com.dh.product.repository.SellerRepository;
 
 @Service
@@ -67,6 +68,7 @@ public class ProductService {
     private final InventoryRepository inventoryRepository;
     private final InventoryService inventoryService;
     private final SellerRepository sellerRepository;
+    private final OfferService offerService;
 
     public ProductService(
             ProductRepository productRepository,
@@ -76,7 +78,8 @@ public class ProductService {
             ProductOptionValueRepository productOptionValueRepository,
             InventoryRepository inventoryRepository,
             InventoryService inventoryService,
-            SellerRepository sellerRepository) {
+            SellerRepository sellerRepository,
+            OfferService offerService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
@@ -85,6 +88,7 @@ public class ProductService {
         this.inventoryRepository = inventoryRepository;
         this.inventoryService = inventoryService;
         this.sellerRepository = sellerRepository;
+        this.offerService = offerService;
     }
 
     public List<ProductSummaryResponse> listProducts(Long categoryId, String q) {
@@ -188,6 +192,7 @@ public class ProductService {
         ProductVariant defaultVariant = new ProductVariant(saved, null, request.price());
         productVariantRepository.save(defaultVariant);
         inventoryService.initialize(defaultVariant, request.stockQuantity());
+        offerService.createFirstPartyOffer(saved, defaultVariant);
 
         return toResponse(saved);
     }
@@ -293,6 +298,7 @@ public class ProductService {
         }
         productVariantRepository.save(variant);
         inventoryService.initialize(variant, request.stockQuantity());
+        offerService.createFirstPartyOffer(product, variant);
 
         return toVariantResponse(variant, request.stockQuantity());
     }
@@ -388,12 +394,10 @@ public class ProductService {
                 .collect(Collectors.toMap(inv -> inv.getVariant().getId(), Inventory::getQuantity));
     }
 
+    // 대표가는 이제 variant.price 가 아니라 대표 오퍼의 가격이다(product.api#31).
+    // V17 백필과 createFirstPartyOffer 로 모든 variant 에 오퍼가 있으므로 값은 전환 전과 같다.
     private BigDecimal representativePrice(List<ProductVariant> variants) {
-        return variants.stream()
-                .filter(ProductVariant::isActive)
-                .map(ProductVariant::getPrice)
-                .min(Comparator.naturalOrder())
-                .orElse(BigDecimal.ZERO);
+        return offerService.representativePrice(variants);
     }
 
     private int totalStock(List<ProductVariant> variants, Map<Long, Integer> stockByVariant) {

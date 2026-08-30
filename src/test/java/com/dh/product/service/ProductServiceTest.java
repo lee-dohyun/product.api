@@ -10,9 +10,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -34,7 +34,10 @@ import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.ProductOptionRepository;
 import com.dh.product.repository.ProductOptionValueRepository;
 import com.dh.product.repository.ProductRepository;
+import com.dh.product.repository.OfferRepository;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.service.offer.LowestPriceFeaturedOfferSelector;
+import com.dh.product.service.offer.OfferService;
 import com.dh.product.repository.SellerRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,9 +59,28 @@ class ProductServiceTest {
     private InventoryService inventoryService;
     @Mock
     private SellerRepository sellerRepository;
+    @Mock
+    private OfferRepository offerRepository;
 
-    @InjectMocks
     private ProductService productService;
+
+    /**
+     * 대표가 계산이 오퍼로 옮겨졌다(product.api#31). {@code OfferService} 를 목으로 두면
+     * 가격이 null 로 돌아와 이 클래스의 검증 대상("활성 variant 중 최저가")이 사라지므로,
+     * 목 리포지토리 위에 실제 {@code OfferService} 를 올린다.
+     *
+     * <p>{@code offerRepository} 가 빈 목록을 돌려주므로 대표가는 폴백 경로(variant.price)를
+     * 탄다 - 즉 이 테스트들은 <b>오퍼가 아직 없을 때도 기존 규칙이 그대로 성립하는지</b>를 본다.
+     * 오퍼가 있을 때의 동작은 {@code OfferIntegrationTest} 가 실제 DB 로 검증한다.
+     */
+    @BeforeEach
+    void setUp() {
+        OfferService offerService = new OfferService(offerRepository, new LowestPriceFeaturedOfferSelector());
+        productService = new ProductService(
+                productRepository, categoryRepository, productVariantRepository,
+                productOptionRepository, productOptionValueRepository, inventoryRepository,
+                inventoryService, sellerRepository, offerService);
+    }
 
     @Test
     void listProducts_ShouldCalculateLowestPriceFromActiveVariantsOnly() {

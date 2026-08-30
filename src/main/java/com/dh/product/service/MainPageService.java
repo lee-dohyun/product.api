@@ -30,6 +30,7 @@ import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.service.offer.OfferService;
 
 @Service
 @Transactional(readOnly = true)
@@ -42,18 +43,21 @@ public class MainPageService {
     private final ProductVariantRepository productVariantRepository;
     private final InventoryRepository inventoryRepository;
     private final BannerRepository bannerRepository;
+    private final OfferService offerService;
 
     public MainPageService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             ProductVariantRepository productVariantRepository,
             InventoryRepository inventoryRepository,
-            BannerRepository bannerRepository) {
+            BannerRepository bannerRepository,
+            OfferService offerService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
         this.inventoryRepository = inventoryRepository;
         this.bannerRepository = bannerRepository;
+        this.offerService = offerService;
     }
 
     /**
@@ -212,12 +216,11 @@ public class MainPageService {
                 .collect(Collectors.toMap(inv -> inv.getVariant().getId(), Inventory::getQuantity));
     }
 
+    // 대표가는 이제 variant.price 가 아니라 대표 오퍼의 가격이다(product.api#31).
+    // V17 백필과 OfferService.createFirstPartyOffer 로 모든 variant 에 오퍼가 있으므로
+    // 값은 전환 전과 같다.
     private BigDecimal representativePrice(List<ProductVariant> variants) {
-        return variants.stream()
-                .filter(ProductVariant::isActive)
-                .map(ProductVariant::getPrice)
-                .min(Comparator.naturalOrder())
-                .orElse(BigDecimal.ZERO);
+        return offerService.representativePrice(variants);
     }
 
     private int totalStock(List<ProductVariant> variants, Map<Long, Integer> stockByVariant) {
