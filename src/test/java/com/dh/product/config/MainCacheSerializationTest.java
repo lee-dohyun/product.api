@@ -83,7 +83,7 @@ class MainCacheSerializationTest {
     void 상품상세_캐시값이_왕복해도_같다() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 21, 21, 0);
         ProductResponse original = new ProductResponse(9001L,
-                new CategoryResponse(9101L, "상의", 9001L),
+                new CategoryResponse(9101L, "상의", 9001L, (short) 1),
                 "포스베이직 오버핏 반팔 티셔츠", "설명",
                 new BigDecimal("22100.00"), 40, List.of(), List.of(), List.of(), now, now,
                 new BigDecimal("29900.00"), new BigDecimal("4.5"), 128, "로켓배송", true, "포스베이직",

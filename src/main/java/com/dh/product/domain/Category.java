@@ -36,4 +36,11 @@ public class Category {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private Category parent;
+
+    // 형제(같은 부모) 안에서의 노출 순서. 조회는 항상 (sort_order, id) 로 정렬한다 -
+    // sort_order 만으로 정렬하면 값이 같은 형제끼리 다시 힙 순서에 맡겨지기 때문이다.
+    // 이 컬럼이 없던 동안 목록에 ORDER BY 자체가 없어서, 카테고리를 한 번이라도 UPDATE 하면
+    // 그 행이 힙 끝으로 밀려 헤더 메뉴 순서가 뒤바뀌었다(V17 주석에 실측 근거).
+    @Column(name = "sort_order", nullable = false)
+    private Short sortOrder = 0;
 }
