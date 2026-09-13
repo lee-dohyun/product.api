@@ -47,6 +47,31 @@ public class OfferService {
                 .toList();
     }
 
+    /**
+     * variant 마다 <b>대표 오퍼</b>를 골라 가격·상품·판매자를 확정해 돌려준다(product.api#69).
+     *
+     * <p>장바구니와 주문을 만드는 프론트(product.front)가 아직 {@code variantId} 만 알고 있어서,
+     * order.api 가 오퍼 기준으로 금액·판매자를 확정하려면 "이 SKU 를 누구 오퍼로 살지"를 서버가
+     * 골라 줘야 한다. 고르는 규칙은 {@link FeaturedOfferSelector} 하나로 모은다 - 대표가
+     * 계산({@link #representativePrice})과 주문 확정이 서로 다른 오퍼를 보면 화면에 보인 가격과
+     * 결제 금액이 갈라진다.
+     *
+     * <p>ACTIVE 오퍼가 없는 variant 와 존재하지 않는 id 는 결과에서 빠진다({@link #resolveOffers}
+     * 와 같은 계약) - 호출자가 요청 개수와 대조해 누락을 판정한다.
+     */
+    public List<OfferResolveResponse> resolveFeaturedOffersByVariant(Collection<Long> variantIds) {
+        if (variantIds == null || variantIds.isEmpty()) {
+            return List.of();
+        }
+        return offerRepository.findAllByVariantIdInWithVariantAndSeller(variantIds, OfferStatus.ACTIVE).stream()
+                .collect(Collectors.groupingBy(o -> o.getVariant().getId()))
+                .values().stream()
+                .map(featuredOfferSelector::select)
+                .flatMap(Optional::stream)
+                .map(this::toResolveResponse)
+                .toList();
+    }
+
     /** SKU 하나의 대표 오퍼. 1P 에서는 후보가 1건이라 자명하다. */
     public Optional<Offer> featuredOfferOf(Long variantId) {
         return featuredOfferSelector.select(

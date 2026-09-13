@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.dh.product.service.CategoryHierarchyException;
+import com.dh.product.service.offer.InvalidOfferResolveRequestException;
 import com.dh.product.service.rag.RagUnavailableException;
 
 @RestControllerAdvice
@@ -30,6 +31,12 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(CategoryHierarchyException.class)
     public ResponseEntity<String> handleBadRequest(CategoryHierarchyException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+    }
+
+    /** {@code /internal/offers/resolve} 의 ids/variantIds 규칙 위반 - 호출자가 고칠 요청 오류라 400. */
+    @ExceptionHandler(InvalidOfferResolveRequestException.class)
+    public ResponseEntity<String> handleInvalidOfferResolveRequest(InvalidOfferResolveRequestException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
     }
 

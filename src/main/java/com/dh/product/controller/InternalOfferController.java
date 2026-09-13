@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
+import com.dh.product.service.offer.InvalidOfferResolveRequestException;
 import com.dh.product.service.offer.OfferService;
 
 /**
@@ -29,8 +30,21 @@ public class InternalOfferController {
         this.offerService = offerService;
     }
 
+    /**
+     * {@code ?ids=} 는 offerId 기준, {@code ?variantIds=} 는 SKU 별 대표 오퍼 기준(product.api#69).
+     *
+     * <p>둘 중 정확히 하나만 받는다. 둘 다 받으면 어느 기준으로 확정했는지 응답만 보고 알 수 없고,
+     * 둘 다 없는데 빈 목록을 돌려주면 호출 버그가 "상품 전부 판매 불가"로 보여 오진하게 된다.
+     */
     @GetMapping("/resolve")
-    public List<OfferResolveResponse> resolve(@RequestParam("ids") List<Long> ids) {
-        return offerService.resolveOffers(ids);
+    public List<OfferResolveResponse> resolve(
+            @RequestParam(value = "ids", required = false) List<Long> ids,
+            @RequestParam(value = "variantIds", required = false) List<Long> variantIds) {
+        if ((ids == null) == (variantIds == null)) {
+            throw new InvalidOfferResolveRequestException("ids 와 variantIds 중 정확히 하나를 지정해야 한다");
+        }
+        return ids != null
+                ? offerService.resolveOffers(ids)
+                : offerService.resolveFeaturedOffersByVariant(variantIds);
     }
 }
