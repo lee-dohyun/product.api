@@ -1,12 +1,15 @@
 package com.dh.product.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
+import com.dh.product.domain.Offer;
+import com.dh.product.domain.OfferStatus;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductOption;
 import com.dh.product.domain.ProductOptionValue;
@@ -317,6 +322,49 @@ class ProductServiceTest {
      * products.seller_id/status 는 V14 부터 NOT NULL 이다(product.api#29) - DB 에 판매자 없는 상품은
      * 존재할 수 없으므로 toResponse 도 null 을 방어하지 않는다. 픽스처를 그 현실에 맞춘다.
      */
+    /**
+     * product.api#72 회귀 방지 — 목록 요약이 상품마다 오퍼를 조회하면 N 개 목록에 오퍼 쿼리가 N 번 나간다.
+     * 실제로 129건 목록이 1.2~2.2초까지 늘어 게이트웨이 3초 타임리미터에 걸려 503 이 났다.
+     */
+    @Test
+    void listProducts_ShouldQueryOffersOnceForWholeList_NotPerProduct() {
+        Category cat = new Category();
+        org.springframework.test.util.ReflectionTestUtils.setField(cat, "id", 10L);
+
+        List<Product> products = new ArrayList<>();
+        List<ProductVariant> variants = new ArrayList<>();
+        List<Offer> offers = new ArrayList<>();
+        for (long i = 1; i <= 3; i++) {
+            Product p = new Product();
+            p.setName("상품" + i);
+            p.setCategory(cat);
+            org.springframework.test.util.ReflectionTestUtils.setField(p, "id", i);
+            attachFirstPartySeller(p);
+            products.add(p);
+
+            ProductVariant v = new ProductVariant(p, "v" + i, BigDecimal.valueOf(1000 * i));
+            org.springframework.test.util.ReflectionTestUtils.setField(v, "id", 100 + i);
+            variants.add(v);
+
+            // 오퍼 가격을 variant 가격과 다르게 둔다 - 폴백(variant.price)이 아니라 맵이 실제로 쓰였는지 보려고
+            Offer o = new Offer(p.getSeller(), v, BigDecimal.valueOf(900 * i), OfferStatus.ACTIVE);
+            org.springframework.test.util.ReflectionTestUtils.setField(o, "id", 500 + i);
+            offers.add(o);
+        }
+
+        given(productRepository.findAll()).willReturn(products);
+        given(productVariantRepository.findByProductIdIn(List.of(1L, 2L, 3L))).willReturn(variants);
+        given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
+        given(offerRepository.findByVariantIdIn(anyCollection())).willReturn(offers);
+
+        List<ProductSummaryResponse> result = productService.listProducts(null, null);
+
+        assertThat(result).extracting(ProductSummaryResponse::price)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(BigDecimal.valueOf(900), BigDecimal.valueOf(1800), BigDecimal.valueOf(2700));
+        verify(offerRepository, times(1)).findByVariantIdIn(anyCollection());
+    }
+
     private static void attachFirstPartySeller(Product product) {
         Seller seller = new Seller();
         org.springframework.test.util.ReflectionTestUtils.setField(seller, "id", 1L);
