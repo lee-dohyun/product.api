@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
+import com.dh.product.domain.Offer;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductImage;
 import com.dh.product.domain.ProductOption;
@@ -154,6 +155,9 @@ public class ProductService {
                 .flatMap(List::stream)
                 .map(ProductVariant::getId)
                 .toList());
+        // 대표 오퍼도 variant·재고처럼 목록 전체에 대해 한 번만 조회한다 - 상품마다 조회하면
+        // 상품 수만큼 쿼리가 나간다(product.api#72).
+        Map<Long, Offer> featuredByVariant = offerService.featuredOffersOfActive(variantsByProduct.values());
 
         return products.stream()
                 .map(p -> {
@@ -162,7 +166,7 @@ public class ProductService {
                             p.getId(),
                             p.getCategory().getId(),
                             p.getName(),
-                            representativePrice(variants),
+                            offerService.representativePrice(variants, featuredByVariant),
                             totalStock(variants, stockByVariant),
                             p.getImages().isEmpty() ? null : p.getImages().get(0).getImageUrl(),
                             p.getListPrice(),

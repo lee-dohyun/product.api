@@ -122,14 +122,34 @@ public class OfferService {
         if (active.isEmpty()) {
             return BigDecimal.ZERO;
         }
-        Map<Long, Offer> featured = featuredOffersOf(active.stream().map(ProductVariant::getId).toList());
-        return active.stream()
+        return representativePrice(active, featuredOffersOf(active.stream().map(ProductVariant::getId).toList()));
+    }
+
+    /**
+     * 대표 오퍼 맵을 이미 가진 호출자용(product.api#72). 여러 상품의 대표가를 계산할 때는 목록 전체의
+     * 활성 variant 에 대해 {@link #featuredOffersOfActive} 를 <b>한 번</b> 부르고 그 맵을 넘긴다 —
+     * 상품마다 {@link #representativePrice(List)} 를 부르면 상품 수만큼 오퍼 쿼리가 나간다(N+1).
+     * 실제로 129건 목록이 1.2~2.2초까지 늘어 게이트웨이 3초 타임리미터에 걸렸다.
+     */
+    public BigDecimal representativePrice(List<ProductVariant> variants, Map<Long, Offer> featuredByVariantId) {
+        return variants.stream()
+                .filter(ProductVariant::isActive)
                 .map(v -> {
-                    Offer offer = featured.get(v.getId());
+                    Offer offer = featuredByVariantId.get(v.getId());
                     return offer != null ? offer.getPrice() : v.getPrice();
                 })
                 .min(Comparator.naturalOrder())
                 .orElse(BigDecimal.ZERO);
+    }
+
+    /** 여러 상품의 variant 묶음에서 활성 variant 전부의 대표 오퍼를 쿼리 한 번으로 모은다(product.api#72). */
+    public Map<Long, Offer> featuredOffersOfActive(Collection<List<ProductVariant>> variantGroups) {
+        List<Long> activeIds = variantGroups.stream()
+                .flatMap(List::stream)
+                .filter(ProductVariant::isActive)
+                .map(ProductVariant::getId)
+                .toList();
+        return featuredOffersOf(activeIds);
     }
 
     private OfferResolveResponse toResolveResponse(Offer o) {
