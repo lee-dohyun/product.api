@@ -19,6 +19,9 @@ import com.dh.product.domain.ProductSubmission;
 import com.dh.product.domain.Seller;
 import com.dh.product.domain.SubmissionIssue;
 import com.dh.product.domain.SubmissionStatus;
+import com.dh.product.dto.SubmissionDtos.SubmissionIssueResponse;
+import com.dh.product.dto.SubmissionDtos.SubmissionResponse;
+import com.dh.product.dto.SubmissionDtos.SubmissionSummaryResponse;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductSubmissionRepository;
 import com.dh.product.repository.SubmissionIssueRepository;
@@ -148,6 +151,37 @@ public class ProductSubmissionService {
         return status != null
                 ? submissionRepository.findByStatusOrderByIdDesc(status)
                 : submissionRepository.findAll();
+    }
+
+    /**
+     * 관리자 응답 조립은 <b>트랜잭션 안에서</b> 한다(product.api#88). 제출의 상품·판매자는 LAZY 이고
+     * open-in-view 가 꺼져 있어, 컨트롤러에서 엔티티를 받아 {@code getProduct().getName()} 을 부르면
+     * LazyInitializationException 으로 500 이 났다 — 승인·보완 요청은 커밋된 뒤라 "실패로 보이지만 반영된" 상태였다.
+     *
+     * <p>클래스 레벨 readOnly 트랜잭션이다. 쓰기(approve 등) 뒤에 부를 때는 컨트롤러가 <b>별도 호출</b>로
+     * 불러야 한다 — 쓰기 메서드 안에서 부르면 그 트랜잭션에 합류할 뿐 문제는 없지만, 반대로 이 메서드
+     * 안에서 쓰기를 부르면 readOnly 에 합류해 조용히 반영되지 않는다(order.api 차감 유실 사례).
+     */
+    public SubmissionResponse getResponse(Long submissionId) {
+        ProductSubmission s = findOrThrow(submissionId);
+        List<SubmissionIssueResponse> issues = issuesOf(s.getId()).stream()
+                .map(i -> new SubmissionIssueResponse(
+                        i.getId(), i.getCode(), i.getField(), i.getMessage(), i.getSeverity().name()))
+                .toList();
+        return new SubmissionResponse(
+                s.getId(), s.getProduct().getId(), s.getProduct().getName(),
+                s.getSeller().getId(), s.getSeller().getName(),
+                s.getStatus().name(), s.getSubmittedBy(), s.getReviewedBy(), s.getReviewNote(),
+                s.getCreatedAt(), s.getUpdatedAt(), issues);
+    }
+
+    /** 검수 큐 목록. {@link #getResponse} 와 같은 이유로 트랜잭션 안에서 요약을 만든다. */
+    public List<SubmissionSummaryResponse> listSummaries(SubmissionStatus status) {
+        return list(status).stream()
+                .map(s -> new SubmissionSummaryResponse(
+                        s.getId(), s.getProduct().getId(), s.getProduct().getName(),
+                        s.getStatus().name(), s.getUpdatedAt()))
+                .toList();
     }
 
     private void transitionTo(ProductSubmission submission, SubmissionStatus toStatus) {

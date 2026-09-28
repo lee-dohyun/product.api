@@ -17,7 +17,6 @@ import com.dh.product.config.AdminPrincipal;
 import com.dh.product.domain.ProductSubmission;
 import com.dh.product.domain.SubmissionStatus;
 import com.dh.product.dto.SubmissionDtos.ReviewRequest;
-import com.dh.product.dto.SubmissionDtos.SubmissionIssueResponse;
 import com.dh.product.dto.SubmissionDtos.SubmissionResponse;
 import com.dh.product.dto.SubmissionDtos.SubmissionSummaryResponse;
 import com.dh.product.dto.SubmissionDtos.SubmitAcceptedResponse;
@@ -62,17 +61,13 @@ public class SubmissionController {
 
     @GetMapping("/{id}")
     public SubmissionResponse get(@PathVariable Long id) {
-        return toResponse(submissionService.get(id));
+        return submissionService.getResponse(id);
     }
 
     @GetMapping
     public List<SubmissionSummaryResponse> list(@RequestParam(required = false) String status) {
         SubmissionStatus filter = status != null ? SubmissionStatus.valueOf(status) : null;
-        return submissionService.list(filter).stream()
-                .map(s -> new SubmissionSummaryResponse(
-                        s.getId(), s.getProduct().getId(), s.getProduct().getName(),
-                        s.getStatus().name(), s.getUpdatedAt()))
-                .toList();
+        return submissionService.listSummaries(filter);
     }
 
     @PostMapping("/{id}/approve")
@@ -80,7 +75,8 @@ public class SubmissionController {
             @PathVariable Long id, @RequestBody(required = false) ReviewRequest request,
             HttpServletRequest httpRequest) {
         submissionService.approve(id, adminEmail(httpRequest), request != null ? request.reviewNote() : null);
-        return toResponse(submissionService.get(id));
+        // 쓰기 트랜잭션이 커밋된 뒤 별도 readOnly 트랜잭션으로 조회한다(#88).
+        return submissionService.getResponse(id);
     }
 
     @PostMapping("/{id}/request-fix")
@@ -88,7 +84,7 @@ public class SubmissionController {
             @PathVariable Long id, @RequestBody(required = false) ReviewRequest request,
             HttpServletRequest httpRequest) {
         submissionService.requestFix(id, adminEmail(httpRequest), request != null ? request.reviewNote() : null);
-        return toResponse(submissionService.get(id));
+        return submissionService.getResponse(id);
     }
 
     @PostMapping("/{id}/resubmit")
@@ -103,17 +99,5 @@ public class SubmissionController {
     private String adminEmail(HttpServletRequest request) {
         AdminPrincipal admin = (AdminPrincipal) request.getAttribute(AdminAuthInterceptor.PRINCIPAL_ATTRIBUTE);
         return admin.email();
-    }
-
-    private SubmissionResponse toResponse(ProductSubmission s) {
-        List<SubmissionIssueResponse> issues = submissionService.issuesOf(s.getId()).stream()
-                .map(i -> new SubmissionIssueResponse(
-                        i.getId(), i.getCode(), i.getField(), i.getMessage(), i.getSeverity().name()))
-                .toList();
-        return new SubmissionResponse(
-                s.getId(), s.getProduct().getId(), s.getProduct().getName(),
-                s.getSeller().getId(), s.getSeller().getName(),
-                s.getStatus().name(), s.getSubmittedBy(), s.getReviewedBy(), s.getReviewNote(),
-                s.getCreatedAt(), s.getUpdatedAt(), issues);
     }
 }
