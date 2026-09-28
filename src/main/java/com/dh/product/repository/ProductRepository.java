@@ -1,5 +1,10 @@
 package com.dh.product.repository;
 
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 import java.util.Collection;
 import java.util.List;
 
@@ -42,4 +47,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
 
     List<Product> findByCategoryIdInAndStatus(Collection<Long> categoryIds, ProductStatus status);
+
+    /** 파트너 포털의 "내 상품" 목록(product.api#75). 상태와 무관하게 그 판매자의 전부. */
+    List<Product> findBySellerIdOrderByIdDesc(Long sellerId);
+
+    /**
+     * 파트너의 수정·제출 판정과 쓰기 사이에 다른 요청이 끼어들지 못하게 상품 행을 잠근다(product.api#75).
+     * 잠그지 않으면 "검수 중이 아님"을 확인한 직후 제출이 커밋돼, 심사자가 본 것과 다른 내용이 승인될 수 있다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findByIdForUpdate(@Param("id") Long id);
 }

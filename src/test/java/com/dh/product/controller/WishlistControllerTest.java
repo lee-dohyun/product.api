@@ -37,6 +37,13 @@ class WishlistControllerTest {
     @MockitoBean
     private com.dh.product.config.AdminJwtVerifier adminJwtVerifier;
 
+    // PartnerAuthInterceptor(product.api#75)도 @WebMvcTest 슬라이스에 올라온다 - 의존 빈이 없으면 컨텍스트가 안 뜬다.
+    @MockitoBean
+    private com.dh.product.config.PartnerJwtVerifier partnerJwtVerifier;
+
+    @MockitoBean
+    private com.dh.product.repository.SellerRepository sellerRepository;
+
     @Test
     @DisplayName("찜 추가 API")
     void addWishlist() throws Exception {

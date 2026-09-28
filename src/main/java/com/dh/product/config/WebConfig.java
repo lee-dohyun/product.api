@@ -10,12 +10,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final AdminAuthInterceptor adminAuthInterceptor;
+    private final PartnerAuthInterceptor partnerAuthInterceptor;
 
     @Value("${app.cors-allowed-origin-pattern}")
     private String corsAllowedOriginPattern;
 
-    public WebConfig(AdminAuthInterceptor adminAuthInterceptor) {
+    public WebConfig(AdminAuthInterceptor adminAuthInterceptor, PartnerAuthInterceptor partnerAuthInterceptor) {
         this.adminAuthInterceptor = adminAuthInterceptor;
+        this.partnerAuthInterceptor = partnerAuthInterceptor;
     }
 
     // /api/products/qa 는 경로만 관리 영역 아래에 있을 뿐 고객용 POST 다(product.api#58).
@@ -29,6 +31,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/products/**", "/api/categories/**", "/api/sellers/**",
                         "/api/submissions/**")
                 .excludePathPatterns("/api/products/qa");
+        // 파트너 API(product.api#75) - staff 가 아니라 partner realm 토큰으로 인증한다. 관리 API 경로와
+        // 겹치지 않게 /api/partner 아래에만 둔다(겹치면 두 인터셉터가 서로 다른 realm 을 요구해 전부 거부된다).
+        registry.addInterceptor(partnerAuthInterceptor)
+                .addPathPatterns("/api/partner/**");
     }
 
     // posselect-shell(런타임 셸)의 Header/Footer 위젯이 customer.posselect.com/home.posselect.com

@@ -2,6 +2,7 @@ package com.dh.product.controller;
 
 import java.util.NoSuchElementException;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,6 +18,19 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<String> handleNotFound(NoSuchElementException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+    }
+
+    /**
+     * 상품당 진행 중 검수 1건 제약(V19) 위반만 409 로 바꾼다 - 동시에 두 번 제출한 쪽이 받는다.
+     * 다른 무결성 위반까지 409 로 뭉개면 진짜 버그가 "충돌"로 숨으므로 그 외에는 그대로 500 이다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<String> handleIntegrity(DataIntegrityViolationException e) {
+        String message = String.valueOf(e.getMostSpecificCause().getMessage());
+        if (message.contains("uq_product_submissions_open_per_product")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("이미 검수가 진행 중인 상품입니다.");
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("internal error");
     }
 
     @ExceptionHandler(IllegalStateException.class)
