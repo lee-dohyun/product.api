@@ -14,6 +14,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # lazy 컬렉션(이미지·옵션 등)을 IN 으로 묶어 로딩한다. 없으면 목록 129건에서
+        # product_images 조회가 129회 나갔다(product.api#84, Jaeger 실측).
+        default_batch_fetch_size: 100
 
   flyway:
     enabled: true
