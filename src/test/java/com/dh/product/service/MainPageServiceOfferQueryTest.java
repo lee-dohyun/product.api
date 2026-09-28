@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -23,6 +24,7 @@ import com.dh.product.domain.Category;
 import com.dh.product.domain.Offer;
 import com.dh.product.domain.OfferStatus;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.domain.Seller;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
@@ -96,7 +98,7 @@ class MainPageServiceOfferQueryTest {
             offers.add(o);
         }
 
-        given(productRepository.findByOrderByCreatedAtDesc(any(Pageable.class))).willReturn(products);
+        given(productRepository.findByStatusOrderByCreatedAtDesc(eq(ProductStatus.LIVE), any(Pageable.class))).willReturn(products);
         given(productVariantRepository.findByProductIdIn(anyList())).willReturn(variants);
         given(inventoryRepository.findByVariantIdIn(anyList())).willReturn(List.of());
         given(offerRepository.findByVariantIdIn(anyCollection())).willReturn(offers);
