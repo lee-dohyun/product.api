@@ -237,6 +237,33 @@ class ProductSubmissionIntegrationTest {
     }
 
     @Test
+    @DisplayName("관리자 응답(목록·상세)은 트랜잭션 밖 호출에서도 LAZY 상품·판매자를 읽는다 — #88 회귀")
+    void adminResponsesAssembleOutsideCallerTransaction() {
+        // 이 테스트 클래스는 @Transactional 이 아니다 — 컨트롤러처럼 트랜잭션 없이 부른다.
+        // getResponse/listSummaries 가 자기 트랜잭션 안에서 조립하지 않으면 LazyInitializationException.
+        grantFoodPermission();
+        Long productId = createFoodProduct("유기농 당근");
+        fillNoticeAttributes(productId);
+        Long submissionId = submissionService.submit(productId, "partner:sub-1");
+        validationPublisher.publish(submissionId);
+
+        var detail = submissionService.getResponse(submissionId);
+        assertThat(detail.productName()).isEqualTo("유기농 당근");
+        assertThat(detail.sellerName()).isNotBlank();
+        assertThat(detail.status()).isEqualTo("IN_REVIEW");
+
+        assertThat(submissionService.listSummaries(SubmissionStatus.IN_REVIEW))
+                .anySatisfy(s -> assertThat(s.productName()).isEqualTo("유기농 당근"));
+
+        submissionService.requestFix(submissionId, "reviewer@posselect.com", "성분표 사진을 추가해 주세요");
+        var afterFix = submissionService.getResponse(submissionId);
+        assertThat(afterFix.status()).isEqualTo("NEEDS_FIX");
+        assertThat(afterFix.issues())
+                .as("심사자 사유가 파트너에게 보일 이슈로 남는다")
+                .anySatisfy(i -> assertThat(i.message()).isEqualTo("성분표 사진을 추가해 주세요"));
+    }
+
+    @Test
     @DisplayName("사람 심사를 건너뛰고 바로 LIVE 로 보내는 전이는 거부된다")
     void cannotSkipReview() {
         grantFoodPermission();
