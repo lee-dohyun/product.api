@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.dto.ProductDtos.CreateOptionRequest;
 import com.dh.product.dto.ProductDtos.CreateOptionValueRequest;
 import com.dh.product.dto.ProductDtos.CreateVariantRequest;
@@ -31,9 +33,11 @@ import jakarta.validation.Valid;
 public class ProductVariantController {
 
     private final ProductService productService;
+    private final HiddenProductAccess hiddenProductAccess;
 
-    public ProductVariantController(ProductService productService) {
+    public ProductVariantController(ProductService productService, HiddenProductAccess hiddenProductAccess) {
         this.productService = productService;
+        this.hiddenProductAccess = hiddenProductAccess;
     }
 
     @PostMapping("/options")
@@ -52,7 +56,8 @@ public class ProductVariantController {
     }
 
     @GetMapping("/variants")
-    public List<VariantResponse> listVariants(@PathVariable Long productId) {
+    public List<VariantResponse> listVariants(@PathVariable Long productId, HttpServletRequest request) {
+        hiddenProductAccess.requireVisible(productId, request);
         return productService.listVariants(productId);
     }
 

@@ -96,4 +96,43 @@ class AdminAuthInterceptorTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         assertThat(preHandle(request, response)).isTrue();
     }
+
+    /*
+     * product.api#74 - 조회(GET)는 원래 전부 공개였다. 그런데 검수 제출(심사 메모·제출자 이메일)과
+     * 판매자(사업자 정보·정산 계좌)까지 GET 이 무인증으로 열려 있었다. 이 둘만 조회에도 인증을 요구한다.
+     */
+    @Test
+    @DisplayName("상품 목록 GET 은 토큰 없이도 공개다")
+    void productReadIsPublic() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(preHandle(new MockHttpServletRequest("GET", "/api/products"), response)).isTrue();
+    }
+
+    @Test
+    @DisplayName("검수 제출 GET 은 토큰이 없으면 거부된다")
+    void submissionReadRequiresToken() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(preHandle(new MockHttpServletRequest("GET", "/api/submissions"), response)).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("판매자 GET 은 토큰이 없으면 거부된다")
+    void sellerReadRequiresToken() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(preHandle(new MockHttpServletRequest("GET", "/api/sellers/1"), response)).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("PRODUCT_MANAGER 는 검수 제출을 조회할 수 있다")
+    void productManagerReadsSubmissions() throws Exception {
+        given(verifier.verify("token"))
+                .willReturn(new AdminPrincipal("pm@posselect.com", Set.of("PRODUCT_MANAGER")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/submissions/3");
+        request.addHeader("Authorization", BEARER);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(preHandle(request, response)).isTrue();
+    }
 }

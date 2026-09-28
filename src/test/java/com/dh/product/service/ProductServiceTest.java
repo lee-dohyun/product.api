@@ -264,6 +264,56 @@ class ProductServiceTest {
     }
 
     /**
+     * product.api#74 - 공개 목록은 LIVE 만. 파트너가 임시저장(DRAFT)하거나 검수 중인 상품이
+     * 쇼핑몰에 새어 나가면 안 된다. 관리자 화면은 includeHidden=true 로 전부 본다.
+     */
+    @Test
+    void listProducts_PublicCallExcludesNonLiveProducts() {
+        Product live = productWithStatus(1L, ProductStatus.LIVE);
+        Product draft = productWithStatus(2L, ProductStatus.DRAFT);
+        Product paused = productWithStatus(3L, ProductStatus.PAUSED);
+        given(productRepository.findAll()).willReturn(List.of(live, draft, paused));
+
+        List<ProductSummaryResponse> result = productService.listProducts(null, null);
+
+        assertThat(result).extracting(ProductSummaryResponse::id).containsExactly(1L);
+    }
+
+    @Test
+    void listProducts_IncludeHiddenReturnsEveryStatus() {
+        Product live = productWithStatus(1L, ProductStatus.LIVE);
+        Product draft = productWithStatus(2L, ProductStatus.DRAFT);
+        given(productRepository.findAll()).willReturn(List.of(live, draft));
+
+        List<ProductSummaryResponse> result = productService.listProducts(null, null, true);
+
+        assertThat(result).extracting(ProductSummaryResponse::id).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void getSummariesByIds_ExcludesNonLiveProducts() {
+        Product live = productWithStatus(1L, ProductStatus.LIVE);
+        Product draft = productWithStatus(2L, ProductStatus.DRAFT);
+        given(productRepository.findAllById(List.of(2L, 1L))).willReturn(List.of(live, draft));
+
+        List<ProductSummaryResponse> result = productService.getSummariesByIds(List.of(2L, 1L));
+
+        assertThat(result).extracting(ProductSummaryResponse::id).containsExactly(1L);
+    }
+
+    private static Product productWithStatus(Long id, ProductStatus status) {
+        Category cat = new Category();
+        org.springframework.test.util.ReflectionTestUtils.setField(cat, "id", 10L);
+        Product product = new Product();
+        product.setName("p" + id);
+        product.setCategory(cat);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", id);
+        attachFirstPartySeller(product);
+        product.setStatus(status);
+        return product;
+    }
+
+    /**
      * products.seller_id/status 는 V14 부터 NOT NULL 이다(product.api#29) - DB 에 판매자 없는 상품은
      * 존재할 수 없으므로 toResponse 도 null 을 방어하지 않는다. 픽스처를 그 현실에 맞춘다.
      */

@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.WishlistItem;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.WishlistRepository;
@@ -48,6 +49,7 @@ class WishlistServiceTest {
         Product product = new Product();
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", productId);
         product.setName("Test Product");
+        product.setStatus(ProductStatus.LIVE);
 
         given(productRepository.findById(productId)).willReturn(Optional.of(product));
         given(wishlistRepository.existsByUserIdAndProductId(userId, productId)).willReturn(false);
@@ -62,6 +64,18 @@ class WishlistServiceTest {
         // then
         assertThat(id).isEqualTo(100L);
         verify(wishlistRepository).save(any(WishlistItem.class));
+    }
+
+    @Test
+    @DisplayName("LIVE 가 아닌 상품은 없는 상품과 똑같이 거부된다 (product.api#74)")
+    void addWishlist_NonLiveProductIsNotFound() {
+        Product draft = new Product();
+        draft.setStatus(ProductStatus.DRAFT);
+        given(productRepository.findById(5L)).willReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> wishlistService.addWishlist("user-123", 5L))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(wishlistRepository, never()).save(any(WishlistItem.class));
     }
 
     @Test

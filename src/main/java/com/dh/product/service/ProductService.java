@@ -91,7 +91,16 @@ public class ProductService {
         this.offerService = offerService;
     }
 
+    /** 공개 목록 - LIVE 상품만. */
     public List<ProductSummaryResponse> listProducts(Long categoryId, String q) {
+        return listProducts(categoryId, q, false);
+    }
+
+    /**
+     * @param includeHidden true 면 LIVE 가 아닌 상품(DRAFT/PAUSED/ARCHIVED)도 포함한다.
+     *                      관리자 화면 전용 - 호출부(ProductController)가 staff 역할을 확인한 뒤에만 true 를 준다.
+     */
+    public List<ProductSummaryResponse> listProducts(Long categoryId, String q, boolean includeHidden) {
         List<Product> products;
         boolean hasCategory = categoryId != null;
         boolean hasQuery = q != null && !q.isBlank();
@@ -106,7 +115,7 @@ public class ProductService {
             products = productRepository.findAll();
         }
 
-        return toSummaries(products);
+        return toSummaries(includeHidden ? products : onlyLive(products));
     }
 
     /**
@@ -119,11 +128,17 @@ public class ProductService {
         }
         Map<Long, Product> byId = productRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Product::getId, p -> p));
+        // RAG 답변의 근거로 쓰인다 - 숨김 상품이 섞이면 공개 전 상품이 답변으로 새어 나간다.
         List<Product> orderedProducts = ids.stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
+                .filter(Product::isPubliclyVisible)
                 .toList();
         return toSummaries(orderedProducts);
+    }
+
+    private static List<Product> onlyLive(List<Product> products) {
+        return products.stream().filter(Product::isPubliclyVisible).toList();
     }
 
     private List<ProductSummaryResponse> toSummaries(List<Product> products) {
@@ -350,7 +365,9 @@ public class ProductService {
                         v.getProduct().getId(),
                         v.getProduct().getName(),
                         v.getPrice(),
-                        v.isActive()))
+                        // order.api 는 active=false 를 주문 불가로 거부한다. 숨김 상품의 SKU 도 같은 이유로
+                        // 주문되면 안 되므로 여기서 합쳐 넘긴다(product.api#74).
+                        v.isActive() && v.getProduct().isPubliclyVisible()))
                 .toList();
     }
 

@@ -1,6 +1,7 @@
 package com.dh.product.config;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,11 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
             "/api/sellers", "PARTNER",
             "/api/submissions", "PRODUCT_MANAGER");
 
+    // GET 도 인증을 요구하는 경로(product.api#74). 나머지 GET 은 쇼핑몰이 쓰는 공개 조회라 통과시키지만,
+    // 이 둘은 공개할 이유가 없는 내부 데이터다 - 검수 제출은 심사 메모·제출자 이메일을, 판매자는
+    // 사업자 정보·정산 계좌를 담고 있다. 2026-09-28 확인 당시 둘 다 무인증 GET 으로 열려 있었다.
+    private static final Set<String> READ_PROTECTED_PREFIXES = Set.of("/api/submissions", "/api/sellers");
+
     private final AdminJwtVerifier verifier;
 
     public AdminAuthInterceptor(AdminJwtVerifier verifier) {
@@ -45,7 +51,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
-        if ("GET".equalsIgnoreCase(request.getMethod())) {
+        if ("GET".equalsIgnoreCase(request.getMethod()) && !isReadProtected(request.getRequestURI())) {
             return true;
         }
         String requiredRole = resolveRequiredRole(request.getRequestURI());
@@ -67,6 +73,10 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         logger.info("admin write: {} {} by {}", request.getMethod(), request.getRequestURI(), admin.email());
         request.setAttribute(PRINCIPAL_ATTRIBUTE, admin);
         return true;
+    }
+
+    private static boolean isReadProtected(String uri) {
+        return READ_PROTECTED_PREFIXES.stream().anyMatch(p -> uri.equals(p) || uri.startsWith(p + "/"));
     }
 
     /** 가장 구체적으로(긴 접두사로) 매칭되는 역할을 고른다 - 경로가 여러 접두사에 걸리는 일은 없지만 안전하게. */

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -33,4 +34,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByOrderByCreatedAtDesc(Pageable pageable);
 
     List<Product> findByOrderByIdDesc(Pageable pageable);
+
+    // 메인 페이지용 LIVE 한정 조회(product.api#74). 조회 후 걸러내면 limit 개수보다 적게 나오므로
+    // 상태 조건을 쿼리에 넣는다.
+    List<Product> findByStatusOrderByCreatedAtDesc(ProductStatus status, Pageable pageable);
+
+    List<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
+
+    List<Product> findByCategoryIdInAndStatus(Collection<Long> categoryIds, ProductStatus status);
 }
