@@ -138,6 +138,11 @@ public class ProductService {
         return toSummaries(orderedProducts);
     }
 
+    /** 판매자 한 곳의 상품 전부(숨김 포함). 파트너 포털 전용 - 호출부가 sellerId 를 토큰에서 얻었어야 한다. */
+    public List<ProductSummaryResponse> listSellerProducts(Long sellerId) {
+        return toSummaries(productRepository.findBySellerIdOrderByIdDesc(sellerId));
+    }
+
     private static List<Product> onlyLive(List<Product> products) {
         return products.stream().filter(Product::isPubliclyVisible).toList();
     }
@@ -258,6 +263,7 @@ public class ProductService {
             ProductVariant only = activeVariants.get(0);
             only.setPrice(request.price());
             inventoryService.adjustTo(only, request.stockQuantity());
+            offerService.syncSellerOfferPrice(product, only);
         }
 
         return toResponse(product);

@@ -113,6 +113,20 @@ public class OfferService {
     }
 
     /**
+     * SKU 가격이 바뀌면 그 상품 판매자의 오퍼 가격도 맞춘다. 화면의 대표가는 오퍼 가격에서 나오므로
+     * ({@link #representativePrice}) SKU 만 고치면 "저장했는데 가격이 그대로"가 된다(product.api#75 리뷰).
+     * 다른 판매자의 오퍼(3P)는 건드리지 않는다 - 그 판매자가 정한 가격이다.
+     *
+     * <p>클래스 레벨이 {@code readOnly = true} 라 쓰기 메서드는 {@code @Transactional} 을 따로 붙인다(캐논 §3).
+     */
+    @Transactional
+    public void syncSellerOfferPrice(Product product, ProductVariant variant) {
+        offerRepository.findByVariantIdIn(List.of(variant.getId())).stream()
+                .filter(o -> o.getSeller().getId().equals(product.getSeller().getId()))
+                .forEach(o -> o.setPrice(variant.getPrice()));
+    }
+
+    /**
      * 활성 variant 들의 대표 가격(= 최저 대표오퍼가). 오퍼가 아직 없는 variant 는 그 variant 의
      * 가격으로 넘어간다 - V17 백필과 {@link #createFirstPartyOffer} 로 그런 variant 는 없어야
      * 하지만, 하나 빠졌다고 상품 가격이 0원으로 보이는 것보다는 낫다.
