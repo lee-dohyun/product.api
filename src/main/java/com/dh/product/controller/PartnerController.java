@@ -100,7 +100,7 @@ public class PartnerController {
     @PostMapping("/products/{id}/submission")
     public ResponseEntity<SubmitAcceptedResponse> submit(@PathVariable Long id, HttpServletRequest request) {
         PartnerPrincipal partner = partner(request);
-        Long submissionId = partnerProductService.submit(partner.sellerId(), id, partner.email());
+        Long submissionId = partnerProductService.submit(partner.sellerId(), id, partner.actor());
         // 커밋 이후에 검증을 의뢰한다 - submit() 의 트랜잭션이 끝난 뒤다(ProductSubmissionService#submit 주석).
         validationPublisher.publish(submissionId);
         return ResponseEntity.accepted()
@@ -111,7 +111,7 @@ public class PartnerController {
     @GetMapping("/products/{id}/submission")
     public SubmissionResponse latestSubmission(@PathVariable Long id, HttpServletRequest request) {
         PartnerPrincipal partner = partner(request);
-        return partnerProductService.latestSubmission(partner.sellerId(), id, partner.email());
+        return partnerProductService.latestSubmission(partner.sellerId(), id, partner.actor());
     }
 
     private static PartnerPrincipal partner(HttpServletRequest request) {
