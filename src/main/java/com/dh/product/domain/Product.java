@@ -110,6 +110,11 @@ public class Product {
         updatedAt = LocalDateTime.now();
     }
 
+    /** 쇼핑몰(고객)에 보여도 되는가. LIVE 만 공개다 - 나머지는 관리자/판매자에게만 보인다(product.api#74). */
+    public boolean isPubliclyVisible() {
+        return status == ProductStatus.LIVE;
+    }
+
     public void addImage(ProductImage image) {
         images.add(image);
         image.setProduct(this);

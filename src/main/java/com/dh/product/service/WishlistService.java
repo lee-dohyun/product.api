@@ -23,7 +23,9 @@ public class WishlistService {
         if (wishlistRepository.existsByUserIdAndProductId(userId, productId)) {
             throw new IllegalStateException("Already added to wishlist");
         }
+        // 숨김 상품은 고객에게 "없는 상품"이다(product.api#74) - 존재 여부를 구분해 알려 주지 않는다.
         Product product = productRepository.findById(productId)
+                .filter(Product::isPubliclyVisible)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
                 
         WishlistItem item = new WishlistItem(userId, product);

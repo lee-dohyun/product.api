@@ -43,7 +43,11 @@ public class CartService {
     }
 
     public CartResponse addItem(String cartId, Long variantId, int quantity) {
-        if (!productVariantRepository.existsById(variantId)) {
+        // 숨김 상품의 SKU 는 없는 SKU 와 똑같이 거부한다(product.api#74) - variant id 는 순번이라 추측할 수 있다.
+        boolean orderable = productVariantRepository.findById(variantId)
+                .map(v -> v.getProduct().isPubliclyVisible())
+                .orElse(false);
+        if (!orderable) {
             throw new NoSuchElementException("variant not found: " + variantId);
         }
         Map<Long, Integer> items = readItems(cartId);
@@ -108,8 +112,8 @@ public class CartService {
         List<CartItemResponse> responses = new ArrayList<>();
         for (Map.Entry<Long, Integer> entry : items.entrySet()) {
             ProductVariant variant = variants.get(entry.getKey());
-            if (variant == null) {
-                continue; // variant가 삭제된 경우 장바구니에서 조용히 제외
+            if (variant == null || !variant.getProduct().isPubliclyVisible()) {
+                continue; // variant가 삭제됐거나 상품이 판매중지(숨김)된 경우 장바구니에서 조용히 제외
             }
             int quantity = entry.getValue();
             var product = variant.getProduct();

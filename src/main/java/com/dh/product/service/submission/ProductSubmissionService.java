@@ -1,5 +1,9 @@
 package com.dh.product.service.submission;
 
+import org.springframework.cache.annotation.CacheEvict;
+
+import com.dh.product.config.CacheNames;
+
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -96,8 +100,15 @@ public class ProductSubmissionService {
         transitionTo(submission, blocked ? SubmissionStatus.NEEDS_FIX : SubmissionStatus.IN_REVIEW);
     }
 
-    /** 심사자 승인 - 여기서만 상품이 실제로 노출된다(products.status = LIVE). */
+    /**
+     * 심사자 승인 - 여기서만 상품이 실제로 노출된다(products.status = LIVE).
+     *
+     * <p>캐시를 비우지 않으면 승인해도 메인 페이지·상품 상세 캐시가 이전 상태를 계속 준다(product.api#74).
+     * 상품 id 가 파라미터에 없어 키 지정 대신 product 캐시 전체를 비운다 - 승인은 드문 작업이다.
+     */
     @Transactional
+    @CacheEvict(cacheNames = { CacheNames.PRODUCT, CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY },
+            allEntries = true)
     public void approve(Long submissionId, String reviewedBy, String reviewNote) {
         ProductSubmission submission = findOrThrow(submissionId);
         transitionTo(submission, SubmissionStatus.LIVE);

@@ -22,6 +22,7 @@ import com.dh.product.domain.Banner;
 import com.dh.product.domain.Category;
 import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.BannerDtos.BannerResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
@@ -68,13 +69,13 @@ public class MainPageService {
      */
     @Cacheable(cacheNames = CacheNames.MAIN_BEST)
     public List<ProductSummaryResponse> getBestProducts(int limit) {
-        List<Product> products = productRepository.findByOrderByIdDesc(PageRequest.of(0, limit));
+        List<Product> products = productRepository.findByStatusOrderByIdDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
         return toSummaryResponses(products);
     }
 
     @Cacheable(cacheNames = CacheNames.MAIN_NEW)
     public List<ProductSummaryResponse> getNewProducts(int limit) {
-        List<Product> products = productRepository.findByOrderByCreatedAtDesc(PageRequest.of(0, limit));
+        List<Product> products = productRepository.findByStatusOrderByCreatedAtDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
         return toSummaryResponses(products);
     }
 
@@ -112,7 +113,7 @@ public class MainPageService {
         }
 
         // 대분류마다 따로 조회하지 않고 한 번에 가져와 묶는다.
-        Map<Long, List<Product>> productsByRoot = productRepository.findByCategoryIdIn(rootByCategoryId.keySet())
+        Map<Long, List<Product>> productsByRoot = productRepository.findByCategoryIdInAndStatus(rootByCategoryId.keySet(), ProductStatus.LIVE)
                 .stream()
                 .collect(Collectors.groupingBy(p -> rootByCategoryId.get(p.getCategory().getId())));
 

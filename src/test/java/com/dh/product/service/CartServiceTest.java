@@ -24,6 +24,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.CartDtos.CartResponse;
 import com.dh.product.repository.ProductVariantRepository;
@@ -61,7 +62,7 @@ class CartServiceTest {
 
     @Test
     void addItem_ThrowsException_WhenVariantNotFound() {
-        given(productVariantRepository.existsById(999L)).willReturn(false);
+        given(productVariantRepository.findById(999L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> cartService.addItem("user1", 999L, 1))
                 .isInstanceOf(NoSuchElementException.class)
@@ -71,16 +72,17 @@ class CartServiceTest {
     @Test
     void addItem_AddsItemAndCalculatesTotal_WhenCartIsInitiallyEmpty() {
         // given
-        given(productVariantRepository.existsById(1L)).willReturn(true);
         given(valueOperations.get("cart:user1")).willReturn(null); // empty cart
 
         Product product = new Product();
         product.setName("Test Product");
         product.setDescription("Desc");
+        product.setStatus(ProductStatus.LIVE);
 
         ProductVariant variant = new ProductVariant(product, "Opt1", BigDecimal.valueOf(100));
         org.springframework.test.util.ReflectionTestUtils.setField(variant, "id", 1L);
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 100L);
+        given(productVariantRepository.findById(1L)).willReturn(Optional.of(variant));
 
         given(productVariantRepository.findAllById(Set.of(1L))).willReturn(List.of(variant));
 
@@ -93,6 +95,18 @@ class CartServiceTest {
         assertThat(response.items().get(0).variantId()).isEqualTo(1L);
         assertThat(response.items().get(0).quantity()).isEqualTo(2);
         assertThat(response.totalPrice()).isEqualByComparingTo(BigDecimal.valueOf(200)); // 100 * 2
+    }
+
+    /** product.api#74 - 숨김 상품의 SKU 는 순번 id 로 추측해 담을 수 있으므로 없는 SKU 와 똑같이 거부한다. */
+    @Test
+    void addItem_RejectsVariantOfHiddenProduct() {
+        Product draft = new Product();
+        draft.setStatus(ProductStatus.DRAFT);
+        ProductVariant variant = new ProductVariant(draft, "Opt1", BigDecimal.valueOf(100));
+        given(productVariantRepository.findById(7L)).willReturn(Optional.of(variant));
+
+        assertThatThrownBy(() -> cartService.addItem("user1", 7L, 1))
+                .isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
@@ -119,6 +133,7 @@ class CartServiceTest {
         Product product = new Product();
         product.setName("Product2");
         product.setDescription("Desc");
+        product.setStatus(ProductStatus.LIVE);
 
         ProductVariant variant2 = new ProductVariant(product, "Opt2", BigDecimal.valueOf(50));
         org.springframework.test.util.ReflectionTestUtils.setField(variant2, "id", 2L);

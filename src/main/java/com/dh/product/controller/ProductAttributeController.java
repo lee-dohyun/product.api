@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.dto.SubmissionDtos.CategoryRequirementResponse;
 import com.dh.product.dto.SubmissionDtos.ProductAttributeResponse;
 import com.dh.product.dto.SubmissionDtos.ProductAttributeUpsertRequest;
@@ -27,9 +29,12 @@ import jakarta.validation.Valid;
 public class ProductAttributeController {
 
     private final ProductAttributeService productAttributeService;
+    private final HiddenProductAccess hiddenProductAccess;
 
-    public ProductAttributeController(ProductAttributeService productAttributeService) {
+    public ProductAttributeController(
+            ProductAttributeService productAttributeService, HiddenProductAccess hiddenProductAccess) {
         this.productAttributeService = productAttributeService;
+        this.hiddenProductAccess = hiddenProductAccess;
     }
 
     @GetMapping("/api/categories/{categoryId}/requirement")
@@ -38,7 +43,8 @@ public class ProductAttributeController {
     }
 
     @GetMapping("/api/products/{productId}/attributes")
-    public List<ProductAttributeResponse> listAttributes(@PathVariable Long productId) {
+    public List<ProductAttributeResponse> listAttributes(@PathVariable Long productId, HttpServletRequest request) {
+        hiddenProductAccess.requireVisible(productId, request);
         return productAttributeService.listAttributes(productId);
     }
 
