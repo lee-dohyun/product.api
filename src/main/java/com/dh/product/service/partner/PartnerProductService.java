@@ -82,9 +82,13 @@ public class PartnerProductService {
         Map<Long, Product> byId = productRepository.findAllById(
                         summaries.stream().map(ProductSummaryResponse::id).toList()).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
+        // 상품마다 제출 이력을 따로 조회하던 N+1 을 한 번의 조회로(product.api#78). 상품별 최신 = id 최대.
+        Map<Long, ProductSubmission> latestByProduct = submissionRepository.findByProductIdIn(byId.keySet()).stream()
+                .collect(Collectors.toMap(sub -> sub.getProduct().getId(), Function.identity(),
+                        (a, b) -> a.getId() > b.getId() ? a : b));
         return summaries.stream()
                 .map(s -> {
-                    ProductSubmission latest = latestSubmission(s.id());
+                    ProductSubmission latest = latestByProduct.get(s.id());
                     return new PartnerProductSummary(
                             s.id(), s.categoryId(), s.name(), s.price(), s.stockQuantity(), s.thumbnailUrl(),
                             byId.get(s.id()).getStatus().name(),
