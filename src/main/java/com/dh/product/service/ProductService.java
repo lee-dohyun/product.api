@@ -38,6 +38,7 @@ import com.dh.product.dto.ProductDtos.ProductCreateRequest;
 import com.dh.product.dto.ProductDtos.ProductImageResponse;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductManagementSummary;
+import com.dh.product.dto.SellerDtos.PublicSellerInfo;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
 import com.dh.product.dto.ProductDtos.UpdateVariantRequest;
@@ -119,6 +120,18 @@ public class ProductService {
         }
 
         return toSummaries(includeHidden ? products : onlyLive(products));
+    }
+
+    /**
+     * 상품 판매자의 공개 정보(product.front#36). 노출 여부(LIVE) 판정은 호출부가 먼저 한다.
+     * 판매자는 LAZY 라 이 트랜잭션 안에서 읽는다(open-in-view 꺼짐).
+     */
+    public PublicSellerInfo publicSellerInfoOf(Long productId) {
+        Seller s = productRepository.findById(productId)
+                .orElseThrow(() -> new NoSuchElementException("product not found: " + productId))
+                .getSeller();
+        return new PublicSellerInfo(s.getName(), s.getRepresentativeName(), s.getBusinessRegistrationNo(),
+                s.getMailOrderSalesNo(), s.getAddress(), s.getPhone(), s.getEmail(), s.getCsContact());
     }
 
     /**

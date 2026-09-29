@@ -107,4 +107,20 @@ public class SellerDtos {
             List<SellerDocumentResponse> documents,
             List<SellerStatusHistoryResponse> history) {
     }
+
+    /**
+     * 상품 상세에 공개하는 판매자 정보(product.front#36). 전자상거래법상 청약 전 제공 의무 항목
+     * (상호·대표자·주소·전화·이메일·사업자등록번호·통신판매업 신고번호)만 담는다 — 정산 계좌·출고지 등
+     * 내부 정보는 절대 넣지 않는다. 판매자 상세({@code GET /api/sellers/{id}})는 직원 전용이다(product.api#74).
+     */
+    public record PublicSellerInfo(
+            String name,
+            String representativeName,
+            String businessRegistrationNo,
+            String mailOrderSalesNo,
+            String address,
+            String phone,
+            String email,
+            String csContact) {
+    }
 }

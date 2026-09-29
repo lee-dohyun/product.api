@@ -117,4 +117,14 @@ class ProductControllerVisibilityTest {
 
         verify(productService).listForManagement(ProductStatus.DRAFT);
     }
+
+    /** product.front#36 - 비공개 상품의 판매자 정보도 비직원에게는 404 다. */
+    @Test
+    void sellerInfoOfDraftIsNotFoundForAnonymous() {
+        given(productService.getProduct(7L)).willReturn(response("DRAFT"));
+
+        assertThatThrownBy(() -> controller.seller(7L, new MockHttpServletRequest()))
+                .isInstanceOf(NoSuchElementException.class);
+        org.mockito.Mockito.verify(productService, org.mockito.Mockito.never()).publicSellerInfoOf(7L);
+    }
 }
