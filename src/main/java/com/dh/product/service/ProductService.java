@@ -3,6 +3,7 @@ package com.dh.product.service;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -36,6 +37,7 @@ import com.dh.product.dto.ProductDtos.OptionValueResponse;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
 import com.dh.product.dto.ProductDtos.ProductImageResponse;
 import com.dh.product.dto.ProductDtos.ProductResponse;
+import com.dh.product.dto.ProductDtos.ProductManagementSummary;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
 import com.dh.product.dto.ProductDtos.UpdateVariantRequest;
@@ -117,6 +119,28 @@ public class ProductService {
         }
 
         return toSummaries(includeHidden ? products : onlyLive(products));
+    }
+
+    /**
+     * 관리자 상품 목록(admin.front#50) - 상태와 판매자까지. 최신 등록 순.
+     *
+     * @param status null 이면 전 상태. 호출부(ProductController)가 staff 역할을 확인한 뒤에만 부른다.
+     */
+    public List<ProductManagementSummary> listForManagement(ProductStatus status) {
+        List<Product> products = status != null
+                ? productRepository.findByStatusOrderByIdDesc(status)
+                : productRepository.findAllByOrderByIdDesc();
+        // toSummaries 는 입력 순서를 그대로 유지한다 - 같은 인덱스끼리 짝지어 판매자·상태를 붙인다.
+        List<ProductSummaryResponse> summaries = toSummaries(products);
+        List<ProductManagementSummary> result = new ArrayList<>(summaries.size());
+        for (int i = 0; i < summaries.size(); i++) {
+            ProductSummaryResponse s = summaries.get(i);
+            Product p = products.get(i);
+            result.add(new ProductManagementSummary(
+                    s.id(), s.categoryId(), s.name(), s.price(), s.stockQuantity(), s.thumbnailUrl(),
+                    p.getStatus().name(), p.getSeller().getId(), p.getSeller().getName()));
+        }
+        return result;
     }
 
     /**

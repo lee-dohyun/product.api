@@ -18,6 +18,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 
 import com.dh.product.config.AdminJwtVerifier;
 import com.dh.product.config.HiddenProductAccess;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.config.AdminPrincipal;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.service.ProductService;
@@ -97,5 +98,23 @@ class ProductControllerVisibilityTest {
         controller.list(null, null, new MockHttpServletRequest());
 
         verify(productService).listProducts(null, null, false);
+    }
+
+    /** admin.front#50 - 관리자 목록(판매자·상태 포함)은 직원 전용이다. 비직원에게는 존재 자체를 숨긴다(404). */
+    @Test
+    void manageListIsNotFoundForAnonymous() {
+        assertThatThrownBy(() -> controller.manage(null, new MockHttpServletRequest()))
+                .isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void manageListForProductManagerPassesStatusFilter() {
+        given(verifier.verify("token")).willReturn(new AdminPrincipal("pm@posselect.com", Set.of("PRODUCT_MANAGER")));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer token");
+
+        controller.manage("DRAFT", request);
+
+        verify(productService).listForManagement(ProductStatus.DRAFT);
     }
 }
