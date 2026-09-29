@@ -340,6 +340,8 @@ public class ProductService {
         variant.setPrice(request.price());
         variant.setActive(request.active());
         inventoryService.adjustTo(variant, request.stockQuantity());
+        // 쇼핑몰 대표가는 오퍼 가격에서 나온다 - SKU 만 바꾸면 화면 가격이 그대로다(product.api#77).
+        offerService.syncSellerOfferPrice(variant.getProduct(), variant);
         return toVariantResponse(variant, request.stockQuantity());
     }
 
