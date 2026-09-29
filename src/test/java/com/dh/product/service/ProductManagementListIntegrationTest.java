@@ -1,0 +1,74 @@
+package com.dh.product.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import com.dh.product.config.CacheNames;
+import com.dh.product.domain.ProductStatus;
+import com.dh.product.dto.ProductDtos.ProductCreateRequest;
+
+/**
+ * admin.front#50 - 관리자 상품 목록은 상태·판매자까지 준다. 판매자(LAZY)를 읽으므로 실제 DB 로 확인한다
+ * (open-in-view 가 꺼져 있어 트랜잭션 밖에서 읽으면 LazyInitializationException - product.api#88 과 같은 유형).
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@Testcontainers
+class ProductManagementListIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+
+    @TestConfiguration
+    static class LocalCacheConfig {
+        @Bean
+        @Primary
+        CacheManager testCacheManager() {
+            return new ConcurrentMapCacheManager(
+                    CacheNames.PRODUCT, CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY);
+        }
+    }
+
+    @Autowired
+    private ProductService productService;
+
+    private Long create(String name, String status) {
+        return productService.createProduct(new ProductCreateRequest(
+                9108L, name, null, new BigDecimal("1000"), 1, List.of(),
+                null, null, null, null, false, null, null, status)).id();
+    }
+
+    @Test
+    void includesStatusAndSellerAndFiltersByStatus() {
+        Long draft = create("관리목록 초안", "DRAFT");
+        Long live = create("관리목록 판매중", "LIVE");
+
+        var all = productService.listForManagement(null);
+        assertThat(all).filteredOn(p -> p.id().equals(draft)).singleElement().satisfies(p -> {
+            assertThat(p.status()).isEqualTo("DRAFT");
+            assertThat(p.sellerId()).isEqualTo(1L);
+            assertThat(p.sellerName()).isNotBlank();
+        });
+        assertThat(all).extracting(p -> p.id()).contains(draft, live);
+
+        assertThat(productService.listForManagement(ProductStatus.DRAFT))
+                .extracting(p -> p.id()).contains(draft).doesNotContain(live);
+    }
+}

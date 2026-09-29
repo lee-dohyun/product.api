@@ -67,6 +67,23 @@ public class ProductDtos {
             String status) implements Serializable {
     }
 
+    /**
+     * 관리자 상품 목록 한 줄(admin.front#50). 공개 {@link ProductSummaryResponse} 에 필드를 더하지 않고
+     * 따로 둔다 - 그 record 는 메인 페이지 Redis 캐시(MAIN_*)에 직렬화돼 들어가서, 필드를 바꾸면 배포 직후
+     * 기존 캐시 엔트리 역직렬화가 깨진다. 이 DTO 는 캐시하지 않는다.
+     */
+    public record ProductManagementSummary(
+            Long id,
+            Long categoryId,
+            String name,
+            BigDecimal price,
+            Integer stockQuantity,
+            String thumbnailUrl,
+            String status,
+            Long sellerId,
+            String sellerName) {
+    }
+
     public record ProductSummaryResponse(
             Long id,
             Long categoryId,

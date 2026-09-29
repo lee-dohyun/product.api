@@ -58,4 +58,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.id = :id")
     Optional<Product> findByIdForUpdate(@Param("id") Long id);
+
+    /** 관리자 목록 상태 필터(admin.front#50). */
+    List<Product> findByStatusOrderByIdDesc(ProductStatus status);
+
+    List<Product> findAllByOrderByIdDesc();
 }

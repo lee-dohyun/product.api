@@ -1,6 +1,7 @@
 package com.dh.product.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +16,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.config.HiddenProductAccess;
+import com.dh.product.domain.ProductStatus;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
+import com.dh.product.dto.ProductDtos.ProductManagementSummary;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
@@ -46,6 +49,20 @@ public class ProductController {
             @RequestParam(required = false) String q,
             HttpServletRequest request) {
         return productService.listProducts(categoryId, q, hiddenProductAccess.canSeeHidden(request));
+    }
+
+    /**
+     * 관리자 상품 목록 - 상태·판매자 포함(admin.front#50). 직원(PRODUCT_MANAGER) 전용이고, 아니면 404 로
+     * 경로의 존재 자체를 숨긴다. GET 이라 AdminAuthInterceptor 가 검사하지 않으므로 여기서 판정한다.
+     * 리터럴 경로라 아래 {@code /{id}} 보다 우선 매칭된다.
+     */
+    @GetMapping("/manage")
+    public List<ProductManagementSummary> manage(
+            @RequestParam(required = false) String status, HttpServletRequest request) {
+        if (!hiddenProductAccess.canSeeHidden(request)) {
+            throw new NoSuchElementException("not found");
+        }
+        return productService.listForManagement(status != null ? ProductStatus.valueOf(status) : null);
     }
 
     /**
