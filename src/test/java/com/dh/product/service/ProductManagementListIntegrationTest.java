@@ -71,4 +71,17 @@ class ProductManagementListIntegrationTest {
         assertThat(productService.listForManagement(ProductStatus.DRAFT))
                 .extracting(p -> p.id()).contains(draft).doesNotContain(live);
     }
+
+    /** product.front#36 - 공개 판매자 정보는 법정 항목만. record 에 정산 계좌 필드 자체가 없다. */
+    @Test
+    void publicSellerInfoHasLegalFieldsOnly() {
+        Long id = create("판매자정보 테스트", "LIVE");
+
+        var info = productService.publicSellerInfoOf(id);
+
+        assertThat(info.name()).isNotBlank();
+        assertThat(info.businessRegistrationNo()).isNotBlank();
+        assertThat(java.util.Arrays.stream(info.getClass().getRecordComponents()).map(c -> c.getName()))
+                .doesNotContain("settlementBank", "settlementAccount", "shippingOriginAddress");
+    }
 }

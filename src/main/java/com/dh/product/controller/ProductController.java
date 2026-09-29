@@ -19,6 +19,7 @@ import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
 import com.dh.product.dto.ProductDtos.ProductManagementSummary;
+import com.dh.product.dto.SellerDtos.PublicSellerInfo;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
@@ -74,6 +75,16 @@ public class ProductController {
         ProductResponse product = productService.getProduct(id);
         hiddenProductAccess.requireVisible(id, product.status(), request);
         return product;
+    }
+
+    /**
+     * 상품 상세의 판매자 정보(product.front#36). 상품과 같은 노출 규칙 — 비공개 상품이면 비직원에게 404.
+     * 상태는 캐시된 단건 조회에서 읽고, 판매자 정보는 캐시하지 않는다(판매자가 정보를 고치면 바로 반영).
+     */
+    @GetMapping("/{id}/seller")
+    public PublicSellerInfo seller(@PathVariable Long id, HttpServletRequest request) {
+        hiddenProductAccess.requireVisible(id, productService.getProduct(id).status(), request);
+        return productService.publicSellerInfoOf(id);
     }
 
     @PostMapping
