@@ -13,12 +13,14 @@ import org.springframework.stereotype.Component;
 
 import com.dh.product.domain.CategoryRequirement;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductAttribute;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.domain.Seller;
 import com.dh.product.domain.SellerStatus;
 import com.dh.product.repository.CategoryRequirementRepository;
 import com.dh.product.repository.ProductAttributeRepository;
+import com.dh.product.repository.ProductPolicyRepository;
 import com.dh.product.repository.ProductVariantRepository;
 import com.dh.product.repository.SellerCategoryPermissionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -49,17 +51,20 @@ public class SubmissionValidator {
     private final ProductAttributeRepository productAttributeRepository;
     private final ProductVariantRepository productVariantRepository;
     private final SellerCategoryPermissionRepository sellerCategoryPermissionRepository;
+    private final ProductPolicyRepository productPolicyRepository;
     private final ObjectMapper objectMapper;
 
     public SubmissionValidator(
             CategoryRequirementRepository categoryRequirementRepository,
             ProductAttributeRepository productAttributeRepository,
             ProductVariantRepository productVariantRepository,
-            SellerCategoryPermissionRepository sellerCategoryPermissionRepository) {
+            SellerCategoryPermissionRepository sellerCategoryPermissionRepository,
+            ProductPolicyRepository productPolicyRepository) {
         this.categoryRequirementRepository = categoryRequirementRepository;
         this.productAttributeRepository = productAttributeRepository;
         this.productVariantRepository = productVariantRepository;
         this.sellerCategoryPermissionRepository = sellerCategoryPermissionRepository;
+        this.productPolicyRepository = productPolicyRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -70,7 +75,35 @@ public class SubmissionValidator {
         validateVariants(product, findings);
         validateBannedWords(product, findings);
         validateCategoryRequirement(product, seller, findings);
+        validatePolicy(product, findings);
         return findings;
+    }
+
+    /**
+     * 판매 정책 필수 항목(product.api#79). 과세 구분은 세금계산의, 배송비·반품비·반품지는 청약 전
+     * 제공 정보의 전제다. 임시저장은 빈 칸을 허용하고 검수에서 막는다. field 는 정책 폼의 입력 칸 이름.
+     */
+    private void validatePolicy(Product product, List<ValidationFinding> findings) {
+        ProductPolicy policy = productPolicyRepository.findById(product.getId()).orElse(null);
+        if (policy == null || policy.getTaxType() == null) {
+            findings.add(ValidationFinding.blocking("TAX_TYPE_REQUIRED", "taxType", "과세 구분을 선택해야 합니다."));
+        }
+        if (policy == null || policy.getShippingFeeType() == null) {
+            findings.add(ValidationFinding.blocking("SHIPPING_POLICY_REQUIRED", "shippingFeeType",
+                    "배송비 정책을 선택해야 합니다."));
+        }
+        if (policy == null || policy.getReturnShippingFee() == null) {
+            findings.add(ValidationFinding.blocking("RETURN_FEE_REQUIRED", "returnShippingFee",
+                    "반품 배송비를 입력해야 합니다(청약철회 안내에 필요)."));
+        }
+        if (policy == null || policy.getReturnAddress() == null) {
+            findings.add(ValidationFinding.blocking("RETURN_ADDRESS_REQUIRED", "returnAddress",
+                    "반품·교환 받을 주소를 입력해야 합니다."));
+        }
+        if (policy == null || policy.getShippingLeadDays() == null) {
+            findings.add(ValidationFinding.warning("LEAD_DAYS_EMPTY", "shippingLeadDays",
+                    "출고 소요일이 비어 있습니다."));
+        }
     }
 
     /** 판매자 게이트 - ACTIVE 가 아니면 나머지를 볼 것도 없다. */

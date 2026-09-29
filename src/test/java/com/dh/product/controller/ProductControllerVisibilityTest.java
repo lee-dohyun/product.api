@@ -34,12 +34,14 @@ class ProductControllerVisibilityTest {
     private ProductService productService;
     @Mock
     private AdminJwtVerifier verifier;
+    @Mock
+    private com.dh.product.service.ProductPolicyService productPolicyService;
 
     private ProductController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new ProductController(productService, new HiddenProductAccess(verifier, productService));
+        controller = new ProductController(productService, new HiddenProductAccess(verifier, productService), productPolicyService);
     }
 
     private static ProductResponse response(String status) {

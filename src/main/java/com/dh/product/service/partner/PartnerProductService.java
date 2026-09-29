@@ -36,8 +36,11 @@ import com.dh.product.dto.SubmissionDtos.ProductAttributeResponse;
 import com.dh.product.dto.SubmissionDtos.ProductAttributeValue;
 import com.dh.product.dto.SubmissionDtos.SubmissionIssueResponse;
 import com.dh.product.dto.SubmissionDtos.SubmissionResponse;
+import com.dh.product.dto.PolicyDtos.ProductPolicyRequest;
+import com.dh.product.dto.PolicyDtos.ProductPolicyResponse;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.ProductSubmissionRepository;
+import com.dh.product.service.ProductPolicyService;
 import com.dh.product.service.ProductService;
 import com.dh.product.service.submission.ProductAttributeService;
 import com.dh.product.service.submission.ProductSubmissionService;
@@ -78,18 +81,21 @@ public class PartnerProductService {
     private final ProductSubmissionRepository submissionRepository;
     private final ProductSubmissionService submissionService;
     private final ProductAttributeService attributeService;
+    private final ProductPolicyService policyService;
 
     public PartnerProductService(
             ProductService productService,
             ProductRepository productRepository,
             ProductSubmissionRepository submissionRepository,
             ProductSubmissionService submissionService,
-            ProductAttributeService attributeService) {
+            ProductAttributeService attributeService,
+            ProductPolicyService policyService) {
         this.productService = productService;
         this.productRepository = productRepository;
         this.submissionRepository = submissionRepository;
         this.submissionService = submissionService;
         this.attributeService = attributeService;
+        this.policyService = policyService;
     }
 
     public List<PartnerProductSummary> list(Long sellerId) {
@@ -131,11 +137,15 @@ public class PartnerProductService {
     @Transactional
     public ProductResponse update(Long sellerId, Long productId, PartnerProductRequest request) {
         requireEditable(lockOwnedOrThrow(sellerId, productId));
+        // 판매 정책에 배송비 정책이 있으면 무료배송 표시는 거기서 파생한다(product.api#79) — 기본 정보 폼의
+        // 체크박스 값으로 덮으면 "정책은 무료, 배지는 유료"처럼 둘이 어긋난다.
+        String shippingType = policyService.get(productId).shippingFeeType();
+        boolean freeShipping = shippingType != null ? "FREE".equals(shippingType) : request.freeShipping();
         // 판매자·상태는 null(=기존 유지). 평점·리뷰수·배송배지도 null - 파트너 상품에는 원래 값이 없다.
         return productService.updateProduct(productId, new ProductUpdateRequest(
                 request.categoryId(), request.name(), request.description(), request.price(),
                 request.stockQuantity(), request.imageUrls(), request.listPrice(),
-                null, null, null, request.freeShipping(), request.brand(),
+                null, null, null, freeShipping, request.brand(),
                 null, null));
     }
 
@@ -196,6 +206,18 @@ public class PartnerProductService {
                 s.getSeller().getId(), s.getSeller().getName(),
                 s.getStatus().name(), submittedBy, null, s.getReviewNote(),
                 s.getCreatedAt(), s.getUpdatedAt(), issues);
+    }
+
+    public ProductPolicyResponse getPolicy(Long sellerId, Long productId) {
+        ownedOrThrow(sellerId, productId);
+        return policyService.get(productId);
+    }
+
+    /** 판매 정책 전체 교체(product.api#79). 상품 수정과 같은 수정 가능 조건 + 행 잠금. */
+    @Transactional
+    public ProductPolicyResponse replacePolicy(Long sellerId, Long productId, ProductPolicyRequest request) {
+        requireEditable(lockOwnedOrThrow(sellerId, productId));
+        return policyService.replace(productId, request);
     }
 
     /**

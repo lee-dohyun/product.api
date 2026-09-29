@@ -166,6 +166,7 @@ class PartnerProductIntegrationTest {
         assertThat(latest.issues()).anyMatch(i -> i.code().equals("ATTRIBUTE_REQUIRED"));
 
         partnerProductService.replaceAttributes(partner.getId(), id, notice());
+        partnerProductService.replacePolicy(partner.getId(), id, policy());
         assertThat(submitAndValidate(id)).isEqualTo(SubmissionStatus.IN_REVIEW);
         // 재제출은 새 제출이 아니라 같은 제출을 다시 돌린다 - 심사 이력이 한 줄로 이어져야 한다.
         assertThat(partnerProductService.latestSubmission(partner.getId(), id, "a@example.com").id())
@@ -279,6 +280,65 @@ class PartnerProductIntegrationTest {
                 .satisfies(p -> assertThat(p.price()).isEqualByComparingTo("8000"));
         assertThatThrownBy(() -> partnerProductService.updateVariant(otherPartner.getId(), id, target.id(),
                 new PartnerVariantRequest(null, BigDecimal.ONE, 1, true)))
+                .isInstanceOf(NoSuchElementException.class);
+    }
+
+    // ---- product.api#79 판매 정책 ----
+
+    private static com.dh.product.dto.PolicyDtos.ProductPolicyRequest policy() {
+        return policy("PAID", new BigDecimal("3000"), null, "NONE", null);
+    }
+
+    private static com.dh.product.dto.PolicyDtos.ProductPolicyRequest policy(
+            String shippingType, BigDecimal fee, BigDecimal threshold, String kcType, String kcNumber) {
+        return new com.dh.product.dto.PolicyDtos.ProductPolicyRequest("TAXABLE", kcType, kcNumber, shippingType,
+                fee, threshold, (short) 2, null, null, new BigDecimal("3000"), new BigDecimal("6000"),
+                "서울시 반품센터", null, null, 5);
+    }
+
+    @Test
+    @DisplayName("판매 정책이 비어 있으면 검수에서 과세·배송·반품 항목이 입력칸 단위로 막힌다")
+    void missingPolicyBlocksSubmission() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("정책 누락")).id();
+        partnerProductService.replaceAttributes(partner.getId(), id, notice());
+
+        assertThat(submitAndValidate(id)).isEqualTo(SubmissionStatus.NEEDS_FIX);
+        assertThat(partnerProductService.latestSubmission(partner.getId(), id, "a@example.com").issues())
+                .extracting(i -> i.field())
+                .contains("taxType", "shippingFeeType", "returnShippingFee", "returnAddress");
+    }
+
+    @Test
+    @DisplayName("정책 입력 모순은 400 — 유료인데 배송비 없음 / 조건부인데 기준 없음 / KC 대상인데 번호 없음 / 모르는 값")
+    void contradictoryPolicyIsRejected() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("정책 모순")).id();
+        var paidNoFee = policy("PAID", null, null, "NONE", null);
+        var conditionalNoThreshold = policy("CONDITIONAL", new BigDecimal("3000"), null, "NONE", null);
+        var kcNoNumber = policy("FREE", null, null, "SAFETY_CERT", " ");
+        var unknown = policy("SOMETIMES", null, null, "NONE", null);
+
+        for (var bad : List.of(paidNoFee, conditionalNoThreshold, kcNoNumber, unknown)) {
+            assertThatThrownBy(() -> partnerProductService.replacePolicy(partner.getId(), id, bad))
+                    .isInstanceOf(com.dh.product.service.InvalidProductPolicyException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("무료배송이면 배송비를 비우고 상품의 무료배송 표시도 맞춘다, 남의 상품 정책은 404")
+    void freeShippingNormalizesAndSyncsProductFlag() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("무료배송")).id();
+
+        var saved = partnerProductService.replacePolicy(partner.getId(), id,
+                policy("FREE", new BigDecimal("3000"), new BigDecimal("50000"), "NONE", "무시됨"));
+
+        assertThat(saved.shippingFee()).isNull();
+        assertThat(saved.freeShippingThreshold()).isNull();
+        assertThat(saved.kcCertNumber()).isNull();
+        assertThat(partnerProductService.get(partner.getId(), id).freeShipping()).isTrue();
+        // 기본 정보를 다시 저장해도(체크박스 false) 정책의 무료배송이 이긴다 — 리뷰 지적
+        partnerProductService.update(partner.getId(), id, foodRequest("무료배송"));
+        assertThat(partnerProductService.get(partner.getId(), id).freeShipping()).isTrue();
+        assertThatThrownBy(() -> partnerProductService.getPolicy(otherPartner.getId(), id))
                 .isInstanceOf(NoSuchElementException.class);
     }
 }
