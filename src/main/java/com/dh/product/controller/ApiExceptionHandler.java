@@ -4,6 +4,8 @@ import java.util.NoSuchElementException;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+
+import com.dh.product.service.partner.InvalidPartnerRequestException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -43,6 +45,11 @@ public class ApiExceptionHandler {
      * 잘못된 요청이므로 400 이다. 이 예외 하나만 매핑하는 이유는 예외 클래스 주석 참고 -
      * 범용 IllegalArgumentException 에 걸면 무관한 엔드포인트의 응답 코드가 같이 바뀐다.
      */
+    @ExceptionHandler(InvalidPartnerRequestException.class)
+    public ResponseEntity<String> handleInvalidPartnerRequest(InvalidPartnerRequestException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+    }
+
     @ExceptionHandler(CategoryHierarchyException.class)
     public ResponseEntity<String> handleBadRequest(CategoryHierarchyException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());

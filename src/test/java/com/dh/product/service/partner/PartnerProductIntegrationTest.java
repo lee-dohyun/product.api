@@ -30,7 +30,10 @@ import com.dh.product.domain.SellerCategoryPermission;
 import com.dh.product.domain.SellerStatus;
 import com.dh.product.domain.SellerType;
 import com.dh.product.domain.SubmissionStatus;
+import com.dh.product.dto.PartnerDtos.PartnerOptionAxis;
+import com.dh.product.dto.PartnerDtos.PartnerOptionsRequest;
 import com.dh.product.dto.PartnerDtos.PartnerProductRequest;
+import com.dh.product.dto.PartnerDtos.PartnerVariantRequest;
 import com.dh.product.dto.SubmissionDtos.ProductAttributeValue;
 import com.dh.product.repository.CategoryRepository;
 import com.dh.product.repository.SellerCategoryPermissionRepository;
@@ -204,5 +207,78 @@ class PartnerProductIntegrationTest {
 
         assertThatThrownBy(() -> submissionService.submit(id, "a@example.com"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    // ---- product.api#80 옵션/SKU ----
+
+    private static PartnerOptionsRequest colorBySize() {
+        return new PartnerOptionsRequest(List.of(
+                new PartnerOptionAxis("색상", List.of("블랙", "화이트")),
+                new PartnerOptionAxis("사이즈", List.of("S", "M"))),
+                new BigDecimal("12000"), 3);
+    }
+
+    @Test
+    @DisplayName("옵션 축을 주면 모든 조합의 SKU 가 생기고 옵션 없는 기본 SKU 는 비활성화된다")
+    void configureOptionsGeneratesEveryCombination() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("옵션 상품")).id();
+
+        var product = partnerProductService.configureOptions(partner.getId(), id, colorBySize());
+
+        var active = product.variants().stream().filter(v -> v.active()).toList();
+        assertThat(active).hasSize(4);
+        assertThat(active).allSatisfy(v -> assertThat(v.optionValues()).hasSize(2));
+        assertThat(active.stream().map(v -> v.optionValues().stream().map(ov -> ov.value()).sorted().toList()).distinct())
+                .hasSize(4);
+        assertThat(product.variants().stream().filter(v -> v.optionValues().isEmpty()))
+                .allSatisfy(v -> assertThat(v.active()).isFalse());
+    }
+
+    @Test
+    @DisplayName("옵션이 이미 있으면 재구성은 409 — 기존 SKU·재고 이력 삭제가 걸려 이번 범위 밖")
+    void reconfigureIsRejected() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("재구성")).id();
+        partnerProductService.configureOptions(partner.getId(), id, colorBySize());
+
+        assertThatThrownBy(() -> partnerProductService.configureOptions(partner.getId(), id, colorBySize()))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("축 4개 이상·조합 100개 초과·빈/중복 값은 400")
+    void invalidOptionShapesAreRejected() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("검증")).id();
+        var dup = new PartnerOptionsRequest(List.of(new PartnerOptionAxis("색상", List.of("블랙", "블랙"))),
+                BigDecimal.ONE, 1);
+        var blank = new PartnerOptionsRequest(List.of(new PartnerOptionAxis("색상", List.of(" "))), BigDecimal.ONE, 1);
+        var tooManyAxes = new PartnerOptionsRequest(List.of(
+                new PartnerOptionAxis("a", List.of("1")), new PartnerOptionAxis("b", List.of("1")),
+                new PartnerOptionAxis("c", List.of("1")), new PartnerOptionAxis("d", List.of("1"))), BigDecimal.ONE, 1);
+        List<String> eleven = java.util.stream.IntStream.range(0, 11).mapToObj(String::valueOf).toList();
+        var tooManyCombos = new PartnerOptionsRequest(List.of(
+                new PartnerOptionAxis("a", eleven), new PartnerOptionAxis("b", eleven)), BigDecimal.ONE, 1);
+
+        for (var bad : List.of(dup, blank, tooManyAxes, tooManyCombos)) {
+            assertThatThrownBy(() -> partnerProductService.configureOptions(partner.getId(), id, bad))
+                    .isInstanceOf(InvalidPartnerRequestException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("SKU 별 가격 수정이 쇼핑몰 대표가(최저가)에 반영되고, 남의 SKU 는 404")
+    void updateVariantPriceAndOwnership() {
+        Long id = partnerProductService.create(partner.getId(), foodRequest("SKU 수정")).id();
+        var product = partnerProductService.configureOptions(partner.getId(), id, colorBySize());
+        var target = product.variants().stream().filter(v -> v.active()).findFirst().orElseThrow();
+
+        partnerProductService.updateVariant(partner.getId(), id, target.id(),
+                new PartnerVariantRequest(target.sku(), new BigDecimal("8000"), 7, true));
+
+        assertThat(partnerProductService.list(partner.getId()))
+                .filteredOn(p -> p.id().equals(id)).singleElement()
+                .satisfies(p -> assertThat(p.price()).isEqualByComparingTo("8000"));
+        assertThatThrownBy(() -> partnerProductService.updateVariant(otherPartner.getId(), id, target.id(),
+                new PartnerVariantRequest(null, BigDecimal.ONE, 1, true)))
+                .isInstanceOf(NoSuchElementException.class);
     }
 }

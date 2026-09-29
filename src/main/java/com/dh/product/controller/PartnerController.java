@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.config.PartnerAuthInterceptor;
 import com.dh.product.config.PartnerPrincipal;
+import com.dh.product.dto.PartnerDtos.PartnerOptionsRequest;
 import com.dh.product.dto.PartnerDtos.PartnerProductRequest;
+import com.dh.product.dto.PartnerDtos.PartnerVariantRequest;
+import com.dh.product.dto.ProductDtos.VariantResponse;
 import com.dh.product.dto.PartnerDtos.PartnerProductSummary;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.SubmissionDtos.CategoryRequirementResponse;
@@ -76,6 +79,21 @@ public class PartnerController {
     public ProductResponse update(
             @PathVariable Long id, @Valid @RequestBody PartnerProductRequest body, HttpServletRequest request) {
         return partnerProductService.update(partner(request).sellerId(), id, body);
+    }
+
+    /** 옵션 구성 — 모든 조합의 SKU 자동 생성(product.api#80). 이미 옵션이 있으면 409. */
+    @PutMapping("/products/{id}/options")
+    public ProductResponse configureOptions(
+            @PathVariable Long id, @Valid @RequestBody PartnerOptionsRequest body, HttpServletRequest request) {
+        return partnerProductService.configureOptions(partner(request).sellerId(), id, body);
+    }
+
+    /** SKU 한 개의 가격·재고·판매 여부. */
+    @PutMapping("/products/{id}/variants/{variantId}")
+    public VariantResponse updateVariant(
+            @PathVariable Long id, @PathVariable Long variantId, @Valid @RequestBody PartnerVariantRequest body,
+            HttpServletRequest request) {
+        return partnerProductService.updateVariant(partner(request).sellerId(), id, variantId, body);
     }
 
     /** 카테고리가 요구하는 고시 항목. 공개 경로(/api/categories/{id}/requirement)와 같은 값 - 포털이 한 호스트로만 부르게. */

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -48,5 +49,28 @@ public class PartnerDtos {
             Long submissionId,
             String submissionStatus,
             LocalDateTime submissionUpdatedAt) {
+    }
+
+    /** 옵션 축 하나. 예: name="색상", values=["블랙","화이트"] (product.api#80). */
+    public record PartnerOptionAxis(
+            @NotBlank @Size(max = 50) String name,
+            @NotNull List<String> values) {
+    }
+
+    /**
+     * 옵션 구성 요청 — 모든 축의 조합마다 SKU 를 하나씩 만들고, 가격·재고는 우선 같은 값으로 채운다.
+     * SKU 별 가격·재고는 만든 뒤 {@link PartnerVariantRequest} 로 고친다.
+     */
+    public record PartnerOptionsRequest(
+            @NotNull List<@Valid PartnerOptionAxis> options,
+            @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
+            @NotNull @Min(0) Integer stockQuantity) {
+    }
+
+    public record PartnerVariantRequest(
+            @Size(max = 100) String sku,
+            @NotNull @DecimalMin(value = "0", inclusive = true) BigDecimal price,
+            @NotNull @Min(0) Integer stockQuantity,
+            boolean active) {
     }
 }
