@@ -19,6 +19,7 @@ import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
 import com.dh.product.dto.ProductDtos.ProductManagementSummary;
+import com.dh.product.dto.PolicyDtos.ProductPolicyRequest;
 import com.dh.product.dto.PolicyDtos.ProductPolicyResponse;
 import com.dh.product.dto.SellerDtos.PublicSellerInfo;
 import com.dh.product.dto.ProductDtos.ProductResponse;
@@ -100,6 +101,16 @@ public class ProductController {
     public ProductPolicyResponse policy(@PathVariable Long id, HttpServletRequest request) {
         hiddenProductAccess.requireVisible(id, productService.getProduct(id).status(), request);
         return productPolicyService.get(id);
+    }
+
+    /**
+     * 관리자 판매 정책 전체 교체(admin.front#53). 파트너 API(/api/partner/.../policy)와 달리 판매 중 상품도
+     * 고칠 수 있다 — 직원 권한이고, 관리자 등록(1P) 상품은 검수를 거치지 않는다. 인증·역할(PRODUCT_MANAGER)은
+     * AdminAuthInterceptor 가 /api/products/** 의 non-GET 에 건다. 모순된 입력은 400(ProductPolicyService).
+     */
+    @PutMapping("/{id}/policy")
+    public ProductPolicyResponse replacePolicy(@PathVariable Long id, @Valid @RequestBody ProductPolicyRequest request) {
+        return productPolicyService.replace(id, request);
     }
 
     @PostMapping
