@@ -1,19 +1,11 @@
 package com.dh.product.config;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.nimbusds.jose.crypto.RSASSAVerifier;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -24,16 +16,14 @@ import com.nimbusds.jwt.SignedJWT;
 public class CustomerJwtVerifier {
 
     private final String expectedIssuer;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final Map<String, RSAKey> keyCache = new ConcurrentHashMap<>();
-    private final String jwksUri;
+    private final JwksKeyResolver keys;
 
     public CustomerJwtVerifier(
             @Value("${shop.keycloak.customer-realm-url:http://keycloak-service.keycloak.svc.cluster.local/realms/customer}")
             String customerRealmUrl,
             @Value("${shop.keycloak.customer-realm-issuer:https://keycloak.posselect.com/realms/customer}")
             String expectedIssuer) {
-        this.jwksUri = customerRealmUrl + "/protocol/openid-connect/certs";
+        this.keys = JwksKeyResolver.forUri(customerRealmUrl + "/protocol/openid-connect/certs");
         this.expectedIssuer = expectedIssuer;
     }
 
@@ -49,7 +39,7 @@ public class CustomerJwtVerifier {
         
         try {
             SignedJWT signedJwt = SignedJWT.parse(bearerToken);
-            RSAKey rsaKey = resolveKey(signedJwt.getHeader().getKeyID());
+            RSAKey rsaKey = keys.resolve(signedJwt.getHeader().getKeyID());
             if (rsaKey == null || !signedJwt.verify(new RSASSAVerifier(rsaKey.toRSAPublicKey()))) {
                 return null;
             }
@@ -64,23 +54,5 @@ public class CustomerJwtVerifier {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private RSAKey resolveKey(String kid) throws Exception {
-        RSAKey cached = keyCache.get(kid);
-        if (cached != null) {
-            return cached;
-        }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(jwksUri))
-                .timeout(Duration.ofSeconds(3))
-                .GET()
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        JWKSet jwkSet = JWKSet.parse(response.body());
-        RSAKey key = (RSAKey) jwkSet.getKeyByKeyId(kid);
-        if (key != null) {
-            keyCache.put(kid, key);
-        }
-        return key;
     }
 }

@@ -1,22 +1,15 @@
 package com.dh.product.config;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.nimbusds.jose.crypto.RSASSAVerifier;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -29,16 +22,14 @@ public class AdminJwtVerifier {
 
     // Keycloak이 내부 클러스터 URL로 요청받아도 항상 공개 URL을 issuer로 찍는다 (admin.front에서도 동일하게 확인됨)
     private final String expectedIssuer;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final Map<String, RSAKey> keyCache = new ConcurrentHashMap<>();
-    private final String jwksUri;
+    private final JwksKeyResolver keys;
 
     public AdminJwtVerifier(
             @Value("${admin.staff-realm-url:http://keycloak-service.keycloak.svc.cluster.local/realms/staff}")
             String staffRealmUrl,
             @Value("${admin.staff-realm-issuer:https://keycloak.posselect.com/realms/staff}")
             String expectedIssuer) {
-        this.jwksUri = staffRealmUrl + "/protocol/openid-connect/certs";
+        this.keys = JwksKeyResolver.forUri(staffRealmUrl + "/protocol/openid-connect/certs");
         this.expectedIssuer = expectedIssuer;
     }
 
@@ -56,7 +47,7 @@ public class AdminJwtVerifier {
         }
         try {
             SignedJWT signedJwt = SignedJWT.parse(bearerToken);
-            RSAKey rsaKey = resolveKey(signedJwt.getHeader().getKeyID());
+            RSAKey rsaKey = keys.resolve(signedJwt.getHeader().getKeyID());
             if (rsaKey == null || !signedJwt.verify(new RSASSAVerifier(rsaKey.toRSAPublicKey()))) {
                 return null;
             }
@@ -93,23 +84,5 @@ public class AdminJwtVerifier {
             }
         }
         return Set.copyOf(result);
-    }
-
-    private RSAKey resolveKey(String kid) throws Exception {
-        RSAKey cached = keyCache.get(kid);
-        if (cached != null) {
-            return cached;
-        }
-        HttpRequest request = HttpRequest.newBuilder(URI.create(jwksUri))
-                .timeout(Duration.ofSeconds(3))
-                .GET()
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        JWKSet jwkSet = JWKSet.parse(response.body());
-        RSAKey key = (RSAKey) jwkSet.getKeyByKeyId(kid);
-        if (key != null) {
-            keyCache.put(kid, key);
-        }
-        return key;
     }
 }
