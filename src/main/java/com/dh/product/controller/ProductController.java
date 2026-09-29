@@ -19,10 +19,12 @@ import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
 import com.dh.product.dto.ProductDtos.ProductManagementSummary;
+import com.dh.product.dto.PolicyDtos.ProductPolicyResponse;
 import com.dh.product.dto.SellerDtos.PublicSellerInfo;
 import com.dh.product.dto.ProductDtos.ProductResponse;
 import com.dh.product.dto.ProductDtos.ProductSummaryResponse;
 import com.dh.product.dto.ProductDtos.ProductUpdateRequest;
+import com.dh.product.service.ProductPolicyService;
 import com.dh.product.service.ProductService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,10 +36,13 @@ public class ProductController {
 
     private final ProductService productService;
     private final HiddenProductAccess hiddenProductAccess;
+    private final ProductPolicyService productPolicyService;
 
-    public ProductController(ProductService productService, HiddenProductAccess hiddenProductAccess) {
+    public ProductController(ProductService productService, HiddenProductAccess hiddenProductAccess,
+            ProductPolicyService productPolicyService) {
         this.productService = productService;
         this.hiddenProductAccess = hiddenProductAccess;
+        this.productPolicyService = productPolicyService;
     }
 
     /**
@@ -85,6 +90,16 @@ public class ProductController {
     public PublicSellerInfo seller(@PathVariable Long id, HttpServletRequest request) {
         hiddenProductAccess.requireVisible(id, productService.getProduct(id).status(), request);
         return productService.publicSellerInfoOf(id);
+    }
+
+    /**
+     * 상품 판매 정책 공개 조회(product.api#79) — 배송비·반품비·출고일은 청약 전 제공 정보다.
+     * 상품과 같은 노출 규칙(비공개면 비직원 404).
+     */
+    @GetMapping("/{id}/policy")
+    public ProductPolicyResponse policy(@PathVariable Long id, HttpServletRequest request) {
+        hiddenProductAccess.requireVisible(id, productService.getProduct(id).status(), request);
+        return productPolicyService.get(id);
     }
 
     @PostMapping

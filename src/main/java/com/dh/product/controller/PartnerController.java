@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dh.product.config.PartnerAuthInterceptor;
 import com.dh.product.config.PartnerPrincipal;
 import com.dh.product.dto.PartnerDtos.PartnerOptionsRequest;
+import com.dh.product.dto.PolicyDtos.ProductPolicyRequest;
+import com.dh.product.dto.PolicyDtos.ProductPolicyResponse;
 import com.dh.product.dto.PartnerDtos.PartnerProductRequest;
 import com.dh.product.dto.PartnerDtos.PartnerVariantRequest;
 import com.dh.product.dto.ProductDtos.VariantResponse;
@@ -79,6 +81,19 @@ public class PartnerController {
     public ProductResponse update(
             @PathVariable Long id, @Valid @RequestBody PartnerProductRequest body, HttpServletRequest request) {
         return partnerProductService.update(partner(request).sellerId(), id, body);
+    }
+
+    /** 판매 정책(과세·KC·배송/반품·판매기간·구매수량, product.api#79). 없으면 빈 값들. */
+    @GetMapping("/products/{id}/policy")
+    public ProductPolicyResponse policy(@PathVariable Long id, HttpServletRequest request) {
+        return partnerProductService.getPolicy(partner(request).sellerId(), id);
+    }
+
+    /** 판매 정책 전체 교체. 모순된 입력은 400, 검수 중·판매 중이면 409. */
+    @PutMapping("/products/{id}/policy")
+    public ProductPolicyResponse replacePolicy(
+            @PathVariable Long id, @Valid @RequestBody ProductPolicyRequest body, HttpServletRequest request) {
+        return partnerProductService.replacePolicy(partner(request).sellerId(), id, body);
     }
 
     /** 옵션 구성 — 모든 조합의 SKU 자동 생성(product.api#80). 이미 옵션이 있으면 409. */

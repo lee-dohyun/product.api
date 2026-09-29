@@ -78,6 +78,8 @@ class ProductSubmissionIntegrationTest {
     @Autowired
     private ProductSubmissionService submissionService;
     @Autowired
+    private com.dh.product.service.ProductPolicyService productPolicyService;
+    @Autowired
     private SubmissionValidationPublisher validationPublisher;
     @Autowired
     private ProductAttributeService productAttributeService;
@@ -129,6 +131,11 @@ class ProductSubmissionIntegrationTest {
                 new ProductAttributeValue("expiry", "제조일로부터 7일"),
                 new ProductAttributeValue("storage", "냉장 보관"),
                 new ProductAttributeValue("as_contact", "1588-0000")));
+        // product.api#79 이후 판매 정책(과세·배송·반품)도 검수 필수다 — "보완 완료" 상태를 만들려면 같이 채운다.
+        productPolicyService.replace(productId, new com.dh.product.dto.PolicyDtos.ProductPolicyRequest("TAXABLE", "NONE", null, "PAID",
+                new java.math.BigDecimal("3000"), null, (short) 2, new java.math.BigDecimal("3000"),
+                new java.math.BigDecimal("5000"), new java.math.BigDecimal("3000"), new java.math.BigDecimal("6000"),
+                "서울시 반품센터", null, null, null));
     }
 
     @Test
