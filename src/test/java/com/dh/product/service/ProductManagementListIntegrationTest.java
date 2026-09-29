@@ -84,4 +84,31 @@ class ProductManagementListIntegrationTest {
         assertThat(java.util.Arrays.stream(info.getClass().getRecordComponents()).map(c -> c.getName()))
                 .doesNotContain("settlementBank", "settlementAccount", "shippingOriginAddress");
     }
+
+    @Autowired
+    private ProductPolicyService productPolicyService;
+
+    /** product.api#97 - 판매 기간이 끝난 상품의 SKU 는 주문 가격 확정에서 active=false, 최대 수량은 그대로 전달. */
+    @Test
+    void resolveReflectsSalePeriodAndMaxQuantity() {
+        Long ended = create("판매 종료 상품", "LIVE");
+        Long limited = create("수량 제한 상품", "LIVE");
+        productPolicyService.replace(ended, new com.dh.product.dto.PolicyDtos.ProductPolicyRequest(
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                java.time.LocalDateTime.now().minusDays(2), java.time.LocalDateTime.now().minusDays(1), null));
+        productPolicyService.replace(limited, new com.dh.product.dto.PolicyDtos.ProductPolicyRequest(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, 2));
+        Long endedVariant = productService.getProduct(ended).variants().get(0).id();
+        Long limitedVariant = productService.getProduct(limited).variants().get(0).id();
+
+        var resolved = productService.resolveVariants(List.of(endedVariant, limitedVariant));
+
+        assertThat(resolved).filteredOn(r -> r.variantId().equals(endedVariant)).singleElement()
+                .satisfies(r -> assertThat(r.active()).isFalse());
+        assertThat(resolved).filteredOn(r -> r.variantId().equals(limitedVariant)).singleElement()
+                .satisfies(r -> {
+                    assertThat(r.active()).isTrue();
+                    assertThat(r.maxPurchaseQuantity()).isEqualTo(2);
+                });
+    }
 }

@@ -25,6 +25,7 @@ import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductImage;
 import com.dh.product.domain.ProductOption;
 import com.dh.product.domain.ProductOptionValue;
+import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.domain.Seller;
@@ -73,6 +74,7 @@ public class ProductService {
     private final InventoryService inventoryService;
     private final SellerRepository sellerRepository;
     private final OfferService offerService;
+    private final PurchaseRules purchaseRules;
 
     public ProductService(
             ProductRepository productRepository,
@@ -83,7 +85,8 @@ public class ProductService {
             InventoryRepository inventoryRepository,
             InventoryService inventoryService,
             SellerRepository sellerRepository,
-            OfferService offerService) {
+            OfferService offerService,
+            PurchaseRules purchaseRules) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
@@ -93,6 +96,7 @@ public class ProductService {
         this.inventoryService = inventoryService;
         this.sellerRepository = sellerRepository;
         this.offerService = offerService;
+        this.purchaseRules = purchaseRules;
     }
 
     /** 공개 목록 - LIVE 상품만. */
@@ -408,17 +412,25 @@ public class ProductService {
         if (variantIds == null || variantIds.isEmpty()) {
             return List.of();
         }
-        return productVariantRepository.findAllByIdWithProduct(variantIds).stream()
-                .map(v -> new VariantResolveResponse(
-                        v.getId(),
-                        v.getProduct().getId(),
-                        v.getProduct().getName(),
-                        v.getPrice(),
-                        // order.api 는 active=false 를 주문 불가로 거부한다. 숨김 상품의 SKU 도 같은 이유로
-                        // 주문되면 안 되므로 여기서 합쳐 넘긴다(product.api#74).
-                        v.isActive() && v.getProduct().isPubliclyVisible()))
+        List<ProductVariant> variants = productVariantRepository.findAllByIdWithProduct(variantIds);
+        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(
+                variants.stream().map(v -> v.getProduct().getId()).distinct().toList());
+        return variants.stream()
+                .map(v -> {
+                    ProductPolicy policy = policies.get(v.getProduct().getId());
+                    return new VariantResolveResponse(
+                            v.getId(),
+                            v.getProduct().getId(),
+                            v.getProduct().getName(),
+                            v.getPrice(),
+                            // order.api 는 active=false 를 주문 불가로 거부한다. 숨김 상품(product.api#74)과
+                            // 판매 기간 밖(product.api#97)도 같은 이유로 주문되면 안 되므로 여기서 합쳐 넘긴다.
+                            v.isActive() && v.getProduct().isPubliclyVisible() && purchaseRules.withinSalePeriod(policy),
+                            purchaseRules.maxPurchaseQuantity(policy));
+                })
                 .toList();
     }
+
 
     private ProductOption findOptionOrThrow(Long productId, Long optionId) {
         return productOptionRepository.findById(optionId)

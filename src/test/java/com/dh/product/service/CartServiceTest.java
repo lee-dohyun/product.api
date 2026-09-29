@@ -41,6 +41,9 @@ class CartServiceTest {
     @Mock
     private ProductVariantRepository productVariantRepository;
 
+    @Mock
+    private PurchaseRules purchaseRules;
+
     @InjectMocks
     private CartService cartService;
 
@@ -155,5 +158,26 @@ class CartServiceTest {
     void clear_DeletesCartKeyFromRedis() {
         cartService.clear("user1");
         verify(redisTemplate).delete("cart:user1");
+    }
+
+    /** product.api#97 - 판매 규칙 위반이면 장바구니에 쓰지 않는다. 같은 상품의 SKU 합계로 판정한다. */
+    @Test
+    void addItem_RejectedByPurchaseRules_DoesNotWriteCart() {
+        Product product = new Product();
+        product.setStatus(ProductStatus.LIVE);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 100L);
+        ProductVariant v1 = new ProductVariant(product, "S", BigDecimal.valueOf(100));
+        ProductVariant v2 = new ProductVariant(product, "M", BigDecimal.valueOf(100));
+        org.springframework.test.util.ReflectionTestUtils.setField(v1, "id", 1L);
+        org.springframework.test.util.ReflectionTestUtils.setField(v2, "id", 2L);
+        given(productVariantRepository.findById(2L)).willReturn(Optional.of(v2));
+        given(valueOperations.get("cart:user1")).willReturn("{\"1\":2}");
+        given(productVariantRepository.findAllById(any())).willReturn(List.of(v1, v2));
+        org.mockito.BDDMockito.willThrow(new PurchaseRuleViolationException("최대 2개"))
+                .given(purchaseRules).checkCart(100L, 3);
+
+        assertThatThrownBy(() -> cartService.addItem("user1", 2L, 1))
+                .isInstanceOf(PurchaseRuleViolationException.class);
+        verify(valueOperations, org.mockito.Mockito.never()).set(anyString(), anyString(), any());
     }
 }

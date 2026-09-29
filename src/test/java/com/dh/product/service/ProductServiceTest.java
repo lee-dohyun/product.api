@@ -66,6 +66,8 @@ class ProductServiceTest {
     private SellerRepository sellerRepository;
     @Mock
     private OfferRepository offerRepository;
+    @Mock
+    private com.dh.product.repository.ProductPolicyRepository productPolicyRepository;
 
     private ProductService productService;
 
@@ -84,7 +86,7 @@ class ProductServiceTest {
         productService = new ProductService(
                 productRepository, categoryRepository, productVariantRepository,
                 productOptionRepository, productOptionValueRepository, inventoryRepository,
-                inventoryService, sellerRepository, offerService);
+                inventoryService, sellerRepository, offerService, new PurchaseRules(productPolicyRepository));
     }
 
     @Test

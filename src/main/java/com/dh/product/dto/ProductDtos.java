@@ -171,11 +171,18 @@ public class ProductDtos {
      * 함께 돌려주는 이유는, 클라이언트가 보낸 productId-variantId 조합을 믿지 않고 variantId
      * 하나만으로 나머지를 전부 서버가 결정하기 위함이다(posselect #232).
      */
+    /**
+     * 주문 가격 확정 응답(/internal/variants/resolve, order.api 전용). active=false 면 order.api 가 주문을
+     * 거부한다 — 판매 기간 밖도 여기서 false(product.api#97). maxPurchaseQuantity 는 order.api 가 상품별
+     * 합계 수량을 검사하는 데 쓴다(null = 제한 없음). 필드 추가는 order.api(Spring 기본 ObjectMapper,
+     * 모르는 필드 무시)에 하위 호환이다.
+     */
     public record VariantResolveResponse(
             Long variantId,
             Long productId,
             String productName,
             BigDecimal price,
-            boolean active) {
+            boolean active,
+            Integer maxPurchaseQuantity) {
     }
 }

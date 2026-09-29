@@ -33,9 +33,22 @@ public class CartService {
     private final ProductVariantRepository productVariantRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CartService(StringRedisTemplate redisTemplate, ProductVariantRepository productVariantRepository) {
+    private final PurchaseRules purchaseRules;
+
+    public CartService(StringRedisTemplate redisTemplate, ProductVariantRepository productVariantRepository,
+            PurchaseRules purchaseRules) {
         this.redisTemplate = redisTemplate;
         this.productVariantRepository = productVariantRepository;
+        this.purchaseRules = purchaseRules;
+    }
+
+    /** 이 상품의 장바구니 합계(같은 상품의 SKU 전부)로 판매 기간·최대 수량을 판정한다(product.api#97). */
+    private void checkPurchaseRules(Long productId, Map<Long, Integer> items) {
+        int total = productVariantRepository.findAllById(items.keySet()).stream()
+                .filter(v -> v.getProduct().getId().equals(productId))
+                .mapToInt(v -> items.getOrDefault(v.getId(), 0))
+                .sum();
+        purchaseRules.checkCart(productId, total);
     }
 
     public CartResponse getCart(String cartId) {
@@ -44,14 +57,12 @@ public class CartService {
 
     public CartResponse addItem(String cartId, Long variantId, int quantity) {
         // 숨김 상품의 SKU 는 없는 SKU 와 똑같이 거부한다(product.api#74) - variant id 는 순번이라 추측할 수 있다.
-        boolean orderable = productVariantRepository.findById(variantId)
-                .map(v -> v.getProduct().isPubliclyVisible())
-                .orElse(false);
-        if (!orderable) {
-            throw new NoSuchElementException("variant not found: " + variantId);
-        }
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .filter(v -> v.getProduct().isPubliclyVisible())
+                .orElseThrow(() -> new NoSuchElementException("variant not found: " + variantId));
         Map<Long, Integer> items = readItems(cartId);
         items.merge(variantId, quantity, Integer::sum);
+        checkPurchaseRules(variant.getProduct().getId(), items);
         writeItems(cartId, items);
         return toResponse(items);
     }
@@ -62,6 +73,9 @@ public class CartService {
             items.remove(variantId);
         } else {
             items.put(variantId, quantity);
+            // 수량을 늘릴 때도 판매 기간·최대 수량을 다시 본다(product.api#97). 줄이거나 빼는 건 항상 허용.
+            productVariantRepository.findById(variantId)
+                    .ifPresent(v -> checkPurchaseRules(v.getProduct().getId(), items));
         }
         writeItems(cartId, items);
         return toResponse(items);
