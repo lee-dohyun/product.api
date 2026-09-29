@@ -135,4 +135,20 @@ class AdminAuthInterceptorTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         assertThat(preHandle(request, response)).isTrue();
     }
+
+    /** admin.front#53 - 관리자 정책 수정(PUT /api/products/{id}/policy)은 PRODUCT_MANAGER 만. */
+    @Test
+    @DisplayName("정책 PUT 은 토큰 없으면 거부, ORDER_MANAGER 도 거부")
+    void policyPutRequiresProductManager() throws Exception {
+        MockHttpServletResponse anonymous = new MockHttpServletResponse();
+        assertThat(preHandle(new MockHttpServletRequest("PUT", "/api/products/1/policy"), anonymous)).isFalse();
+        assertThat(anonymous.getStatus()).isEqualTo(403);
+
+        given(verifier.verify("token")).willReturn(new AdminPrincipal("om@posselect.com", Set.of("ORDER_MANAGER")));
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/products/1/policy");
+        request.addHeader("Authorization", BEARER);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(preHandle(request, response)).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
 }
