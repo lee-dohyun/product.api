@@ -1,5 +1,7 @@
 package com.dh.product.service.partner;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,15 @@ import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductSubmission;
 import com.dh.product.domain.SubmissionStatus;
+import com.dh.product.dto.PartnerDtos.PartnerOptionAxis;
+import com.dh.product.dto.PartnerDtos.PartnerOptionsRequest;
+import com.dh.product.dto.PartnerDtos.PartnerVariantRequest;
+import com.dh.product.dto.ProductDtos.CreateOptionRequest;
+import com.dh.product.dto.ProductDtos.CreateOptionValueRequest;
+import com.dh.product.dto.ProductDtos.CreateVariantRequest;
+import com.dh.product.dto.ProductDtos.OptionResponse;
+import com.dh.product.dto.ProductDtos.UpdateVariantRequest;
+import com.dh.product.dto.ProductDtos.VariantResponse;
 import com.dh.product.dto.PartnerDtos.PartnerProductRequest;
 import com.dh.product.dto.PartnerDtos.PartnerProductSummary;
 import com.dh.product.dto.ProductDtos.ProductCreateRequest;
@@ -53,6 +64,10 @@ import com.dh.product.service.submission.ProductSubmissionService;
  */
 @Service
 public class PartnerProductService {
+
+    /** 옵션 한도(product.api#80). 대형몰 등록 화면의 일반적 한도 수준 — 조합 폭발로 SKU 수천 개가 생기는 것을 막는다. */
+    static final int MAX_OPTION_AXES = 3;
+    static final int MAX_COMBINATIONS = 100;
 
     /** 검수가 진행 중이라 상품을 고치거나 다시 제출하면 안 되는 상태. */
     private static final Set<SubmissionStatus> IN_PROGRESS =
@@ -181,6 +196,91 @@ public class PartnerProductService {
                 s.getSeller().getId(), s.getSeller().getName(),
                 s.getStatus().name(), submittedBy, null, s.getReviewNote(),
                 s.getCreatedAt(), s.getUpdatedAt(), issues);
+    }
+
+    /**
+     * 옵션 구성(product.api#80) — 축들의 모든 조합마다 SKU 를 만든다. 옵션 없는 기본 SKU 는
+     * ProductService.createVariant 가 비활성화한다(product.api#47 규칙).
+     *
+     * <p>이미 옵션이 있는 상품은 거부한다(409). 재구성하려면 기존 SKU 를 지워야 하는데 SKU 삭제는
+     * 재고 이력까지 지운다 — 파트너 셀프서비스로 열기 전에 따로 판단할 일이다.
+     */
+    @Transactional
+    public ProductResponse configureOptions(Long sellerId, Long productId, PartnerOptionsRequest request) {
+        Product product = lockOwnedOrThrow(sellerId, productId);
+        requireEditable(product);
+        if (!product.getOptions().isEmpty()) {
+            throw new IllegalStateException("이미 옵션이 구성된 상품입니다. 옵션 재구성은 아직 지원하지 않습니다.");
+        }
+        List<List<String>> axes = validateAxes(request.options());
+
+        List<List<Long>> valueIdsPerAxis = new ArrayList<>();
+        for (int i = 0; i < axes.size(); i++) {
+            OptionResponse option = productService.createOption(
+                    productId, new CreateOptionRequest(request.options().get(i).name().trim()));
+            List<Long> ids = new ArrayList<>();
+            for (String value : axes.get(i)) {
+                ids.add(productService.addOptionValue(productId, option.id(), new CreateOptionValueRequest(value)).id());
+            }
+            valueIdsPerAxis.add(ids);
+        }
+        for (List<Long> combination : cartesian(valueIdsPerAxis)) {
+            productService.createVariant(productId, new CreateVariantRequest(
+                    null, request.price(), request.stockQuantity(), combination));
+        }
+        return productService.getProduct(productId);
+    }
+
+    /** SKU 한 개의 가격·재고·판매 여부. 가격은 오퍼에도 반영된다(product.api#77). */
+    @Transactional
+    public VariantResponse updateVariant(Long sellerId, Long productId, Long variantId, PartnerVariantRequest request) {
+        requireEditable(lockOwnedOrThrow(sellerId, productId));
+        return productService.updateVariant(productId, variantId, new UpdateVariantRequest(
+                request.sku(), request.price(), request.stockQuantity(), request.active()));
+    }
+
+    /** 축 수·값 공백/중복·조합 수 검사. 통과하면 다듬은 값 목록을 돌려준다. */
+    static List<List<String>> validateAxes(List<PartnerOptionAxis> options) {
+        if (options.isEmpty() || options.size() > MAX_OPTION_AXES) {
+            throw new InvalidPartnerRequestException("옵션 종류는 1~" + MAX_OPTION_AXES + "개여야 합니다.");
+        }
+        Set<String> names = new HashSet<>();
+        List<List<String>> result = new ArrayList<>();
+        long combinations = 1;
+        for (PartnerOptionAxis axis : options) {
+            String name = axis.name() == null ? "" : axis.name().trim();
+            if (name.isEmpty() || !names.add(name)) {
+                throw new InvalidPartnerRequestException("옵션 이름이 비었거나 중복됩니다: " + name);
+            }
+            List<String> values = axis.values().stream().map(v -> v == null ? "" : v.trim()).toList();
+            if (values.isEmpty() || values.stream().anyMatch(String::isEmpty)
+                    || new HashSet<>(values).size() != values.size()) {
+                throw new InvalidPartnerRequestException("'" + name + "' 옵션 값이 비었거나 중복됩니다.");
+            }
+            combinations *= values.size();
+            if (combinations > MAX_COMBINATIONS) {
+                throw new InvalidPartnerRequestException("옵션 조합은 " + MAX_COMBINATIONS + "개를 넘을 수 없습니다.");
+            }
+            result.add(values);
+        }
+        return result;
+    }
+
+    private static List<List<Long>> cartesian(List<List<Long>> axes) {
+        List<List<Long>> acc = new ArrayList<>();
+        acc.add(List.of());
+        for (List<Long> axis : axes) {
+            List<List<Long>> next = new ArrayList<>();
+            for (List<Long> prefix : acc) {
+                for (Long id : axis) {
+                    List<Long> combo = new ArrayList<>(prefix);
+                    combo.add(id);
+                    next.add(combo);
+                }
+            }
+            acc = next;
+        }
+        return acc;
     }
 
     private Product ownedOrThrow(Long sellerId, Long productId) {
