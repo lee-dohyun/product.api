@@ -451,9 +451,9 @@ public class ProductService {
                             v.getPrice(),
                             // order.api 는 active=false 를 주문 불가로 거부한다. 숨김 상품(product.api#74)과
                             // 판매 기간 밖(product.api#97)·판매자 정지·해지(product.api#100)도 같은 이유로 주문되면
-                            // 안 되므로 여기서 합쳐 넘긴다.
-                            v.isActive() && v.getProduct().isPubliclyVisible() && purchaseRules.withinSalePeriod(policy)
-                                    && !suspended.contains(v.getProduct().getId()),
+                            // 안 된다. 판정은 PurchaseRules 한 곳에 있다 - offers/resolve 가 같은 식을 써야 하기
+                            // 때문이다(product.api#108).
+                            purchaseRules.purchasable(v, policy, suspended),
                             purchaseRules.maxPurchaseQuantity(policy));
                 })
                 .toList();

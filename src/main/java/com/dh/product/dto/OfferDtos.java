@@ -22,6 +22,12 @@ public class OfferDtos {
             BigDecimal shippingFee,
             boolean freeShipping,
             Short leadTimeDays,
-            boolean active) {
+            /**
+             * 주문 가능 여부. 오퍼 상태만이 아니라 숨김 상품·판매 기간·판매자 정지까지 합친 값이다 —
+             * {@code /internal/variants/resolve} 의 {@code active} 와 같은 의미여야 한다(product.api#108).
+             */
+            boolean active,
+            /** 상품별 1회 최대 구매 수량. 제한 없으면 null (product.api#97). */
+            Integer maxPurchaseQuantity) {
     }
 }
