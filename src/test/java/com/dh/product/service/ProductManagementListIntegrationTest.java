@@ -111,4 +111,60 @@ class ProductManagementListIntegrationTest {
                     assertThat(r.maxPurchaseQuantity()).isEqualTo(2);
                 });
     }
+
+    @Autowired
+    private com.dh.product.repository.SellerRepository sellerRepository;
+
+    /**
+     * product.api#100 - 정지된 판매자의 상품은 "판매 중단": 공개 조회는 그대로(노출), 주문 가격 확정은
+     * active=false, 장바구니는 409 사유, 정책 응답은 saleSuspended=true. 판매자를 다시 ACTIVE 로 돌리면 풀린다.
+     */
+    @Test
+    void suspendedSellerProductIsVisibleButNotPurchasable() {
+        com.dh.product.domain.Seller seller = new com.dh.product.domain.Seller();
+        seller.setName("정지 테스트 판매자");
+        seller.setBusinessRegistrationNo("222-22-22222");
+        seller.setRepresentativeName("홍길동");
+        seller.setAddress("서울시");
+        seller.setPhone("010-0000-0000");
+        seller.setEmail("suspended@example.com");
+        seller.setStatus(com.dh.product.domain.SellerStatus.SUSPENDED);
+        seller.setType(com.dh.product.domain.SellerType.SUPPLIER);
+        seller = sellerRepository.save(seller);
+        Long id = productService.createProduct(new ProductCreateRequest(
+                9108L, "정지 판매자 상품", null, new BigDecimal("1000"), 1, List.of(),
+                null, null, null, null, false, null, seller.getId(), "LIVE")).id();
+        Long variant = productService.getProduct(id).variants().get(0).id();
+
+        assertThat(productService.getProduct(id).status()).isEqualTo("LIVE");
+        assertThat(productService.resolveVariants(List.of(variant))).singleElement()
+                .satisfies(r -> assertThat(r.active()).isFalse());
+        assertThat(productPolicyService.get(id).saleSuspended()).isTrue();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> purchaseRules.checkCart(id, 1))
+                .isInstanceOf(PurchaseRuleViolationException.class)
+                .hasMessageContaining("판매가 중단");
+
+        seller.setStatus(com.dh.product.domain.SellerStatus.ACTIVE);
+        sellerRepository.save(seller);
+        assertThat(productService.resolveVariants(List.of(variant))).singleElement()
+                .satisfies(r -> assertThat(r.active()).isTrue());
+        assertThat(productPolicyService.get(id).saleSuspended()).isFalse();
+    }
+
+    @Autowired
+    private PurchaseRules purchaseRules;
+
+    /** admin.front#56 - 관리자 수정도 판매 정책의 배송비에서 무료배송을 파생한다(요청 값 무시). */
+    @Test
+    void adminUpdateDerivesFreeShippingFromPolicy() {
+        Long id = create("무료배송 파생 상품", "LIVE");
+        productPolicyService.replace(id, new com.dh.product.dto.PolicyDtos.ProductPolicyRequest(
+                null, null, null, "FREE", null, null, null, null, null, null, null, null, null, null, null));
+
+        productService.updateProduct(id, new com.dh.product.dto.ProductDtos.ProductUpdateRequest(
+                9108L, "무료배송 파생 상품", null, new BigDecimal("1000"), 1, List.of(),
+                null, null, null, null, false, null, null, null));
+
+        assertThat(productService.getProduct(id).freeShipping()).isTrue();
+    }
 }
