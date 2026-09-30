@@ -49,6 +49,9 @@ public class PolicyDtos {
             String returnAddress,
             LocalDateTime saleStartAt,
             LocalDateTime saleEndAt,
-            Integer maxPurchaseQuantity) {
+            Integer maxPurchaseQuantity,
+            // 판매자 정지·해지로 판매 중단(product.api#100). 정책 값이 아니라 판정 결과다 — 상품 상세가
+            // 구매 버튼을 막고 "판매 중단"을 표시하는 데 쓴다. 요청(PUT)에는 없다.
+            boolean saleSuspended) {
     }
 }

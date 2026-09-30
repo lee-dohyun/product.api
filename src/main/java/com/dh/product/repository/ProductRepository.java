@@ -16,6 +16,14 @@ import com.dh.product.domain.ProductStatus;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
+    /**
+     * 판매자가 판매 가능(ACTIVE)이 아닌 상품 id(product.api#100). 정지·해지 판매자의 상품은 노출은 두고
+     * 구매만 막는다 — 판정은 PurchaseRules 가 이 결과로 한다. 엔티티 대신 id 만 받는 것은 장바구니
+     * 경로가 트랜잭션 밖이라(open-in-view=false) LAZY seller 를 건드릴 수 없기 때문이다.
+     */
+    @Query("SELECT p.id FROM Product p WHERE p.id IN :ids AND p.seller.status <> com.dh.product.domain.SellerStatus.ACTIVE")
+    List<Long> findIdsWithInactiveSeller(@Param("ids") Collection<Long> ids);
+
     List<Product> findByCategoryId(Long categoryId);
 
     /**

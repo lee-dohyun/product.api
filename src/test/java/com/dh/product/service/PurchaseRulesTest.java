@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dh.product.domain.ProductPolicy;
 import com.dh.product.repository.ProductPolicyRepository;
+import com.dh.product.repository.ProductRepository;
 
 /** product.api#97 - 판매 기간(시작 포함·종료 미포함)과 1회 최대 구매 수량. */
 @ExtendWith(MockitoExtension.class)
@@ -26,9 +27,11 @@ class PurchaseRulesTest {
 
     @Mock
     private ProductPolicyRepository repository;
+    @Mock
+    private ProductRepository productRepository;
 
     private PurchaseRules rules() {
-        return new PurchaseRules(repository, Clock.fixed(NOW.atZone(KST).toInstant(), KST));
+        return new PurchaseRules(repository, productRepository, Clock.fixed(NOW.atZone(KST).toInstant(), KST));
     }
 
     private static ProductPolicy policy(LocalDateTime start, LocalDateTime end, Integer max) {
@@ -63,5 +66,13 @@ class PurchaseRulesTest {
         rules().checkCart(2L, 3);
         assertThatThrownBy(() -> rules().checkCart(2L, 4)).isInstanceOf(PurchaseRuleViolationException.class)
                 .hasMessageContaining("3개");
+    }
+
+    /** product.api#100 - 판매자가 정지·해지면 기간·수량과 무관하게 장바구니를 막는다. */
+    @Test
+    void checkCartRejectsSuspendedSeller() {
+        given(productRepository.findIdsWithInactiveSeller(java.util.List.of(3L))).willReturn(java.util.List.of(3L));
+        assertThatThrownBy(() -> rules().checkCart(3L, 1)).isInstanceOf(PurchaseRuleViolationException.class)
+                .hasMessageContaining("판매가 중단");
     }
 }

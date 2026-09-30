@@ -137,15 +137,12 @@ public class PartnerProductService {
     @Transactional
     public ProductResponse update(Long sellerId, Long productId, PartnerProductRequest request) {
         requireEditable(lockOwnedOrThrow(sellerId, productId));
-        // 판매 정책에 배송비 정책이 있으면 무료배송 표시는 거기서 파생한다(product.api#79) — 기본 정보 폼의
-        // 체크박스 값으로 덮으면 "정책은 무료, 배지는 유료"처럼 둘이 어긋난다.
-        String shippingType = policyService.get(productId).shippingFeeType();
-        boolean freeShipping = shippingType != null ? "FREE".equals(shippingType) : request.freeShipping();
+        // 무료배송 표시는 판매 정책이 있으면 ProductService.updateProduct 가 거기서 파생한다(admin.front#56).
         // 판매자·상태는 null(=기존 유지). 평점·리뷰수·배송배지도 null - 파트너 상품에는 원래 값이 없다.
         return productService.updateProduct(productId, new ProductUpdateRequest(
                 request.categoryId(), request.name(), request.description(), request.price(),
                 request.stockQuantity(), request.imageUrls(), request.listPrice(),
-                null, null, null, freeShipping, request.brand(),
+                null, null, null, request.freeShipping(), request.brand(),
                 null, null));
     }
 

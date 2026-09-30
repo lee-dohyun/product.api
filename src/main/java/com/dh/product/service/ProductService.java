@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.cache.annotation.CacheEvict;
@@ -29,6 +30,7 @@ import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.domain.Seller;
+import com.dh.product.domain.ShippingFeeType;
 import com.dh.product.dto.ProductDtos.CategoryResponse;
 import com.dh.product.dto.ProductDtos.CreateOptionRequest;
 import com.dh.product.dto.ProductDtos.CreateOptionValueRequest;
@@ -278,7 +280,7 @@ public class ProductService {
         product.setName(request.name());
         product.setDescription(request.description());
         applyDisplayAttributes(product, request.listPrice(), request.ratingAvg(), request.reviewCount(),
-                request.shippingBadge(), request.freeShipping(), request.brand());
+                request.shippingBadge(), freeShippingFor(id, request.freeShipping()), request.brand());
         // null 은 "안 보냈다"이지 "비우라"가 아니다 - 기존 값을 유지한다(product.api#47 과 같은 이유로,
         // 폼이 채우지 않은 필드가 조용히 초기화되면 안 된다).
         if (request.sellerId() != null) {
@@ -413,8 +415,9 @@ public class ProductService {
             return List.of();
         }
         List<ProductVariant> variants = productVariantRepository.findAllByIdWithProduct(variantIds);
-        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(
-                variants.stream().map(v -> v.getProduct().getId()).distinct().toList());
+        List<Long> productIds = variants.stream().map(v -> v.getProduct().getId()).distinct().toList();
+        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(productIds);
+        Set<Long> suspended = purchaseRules.saleSuspendedOf(productIds);
         return variants.stream()
                 .map(v -> {
                     ProductPolicy policy = policies.get(v.getProduct().getId());
@@ -424,13 +427,28 @@ public class ProductService {
                             v.getProduct().getName(),
                             v.getPrice(),
                             // order.api 는 active=false 를 주문 불가로 거부한다. 숨김 상품(product.api#74)과
-                            // 판매 기간 밖(product.api#97)도 같은 이유로 주문되면 안 되므로 여기서 합쳐 넘긴다.
-                            v.isActive() && v.getProduct().isPubliclyVisible() && purchaseRules.withinSalePeriod(policy),
+                            // 판매 기간 밖(product.api#97)·판매자 정지·해지(product.api#100)도 같은 이유로 주문되면
+                            // 안 되므로 여기서 합쳐 넘긴다.
+                            v.isActive() && v.getProduct().isPubliclyVisible() && purchaseRules.withinSalePeriod(policy)
+                                    && !suspended.contains(v.getProduct().getId()),
                             purchaseRules.maxPurchaseQuantity(policy));
                 })
                 .toList();
     }
 
+
+    /**
+     * 판매 정책에 배송비 정책이 있으면 무료배송 표시는 거기서 파생한다(product.api#79, admin.front#56) —
+     * 기본 정보 폼의 값으로 덮으면 "정책은 무료, 배지는 유료"처럼 둘이 어긋난다. 관리자·파트너 수정이
+     * 모두 이 경로를 지난다. 정책이 없거나 배송비 정책이 비어 있을 때만 요청 값을 쓴다.
+     */
+    private boolean freeShippingFor(Long productId, boolean requested) {
+        ProductPolicy policy = purchaseRules.policiesOf(List.of(productId)).get(productId);
+        if (policy == null || policy.getShippingFeeType() == null) {
+            return requested;
+        }
+        return policy.getShippingFeeType() == ShippingFeeType.FREE;
+    }
 
     private ProductOption findOptionOrThrow(Long productId, Long optionId) {
         return productOptionRepository.findById(optionId)

@@ -86,7 +86,7 @@ class ProductServiceTest {
         productService = new ProductService(
                 productRepository, categoryRepository, productVariantRepository,
                 productOptionRepository, productOptionValueRepository, inventoryRepository,
-                inventoryService, sellerRepository, offerService, new PurchaseRules(productPolicyRepository));
+                inventoryService, sellerRepository, offerService, new PurchaseRules(productPolicyRepository, productRepository));
     }
 
     @Test

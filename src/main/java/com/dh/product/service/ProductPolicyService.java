@@ -30,18 +30,20 @@ public class ProductPolicyService {
 
     private final ProductPolicyRepository policyRepository;
     private final ProductRepository productRepository;
+    private final PurchaseRules purchaseRules;
 
-    public ProductPolicyService(ProductPolicyRepository policyRepository, ProductRepository productRepository) {
+    public ProductPolicyService(ProductPolicyRepository policyRepository, ProductRepository productRepository,
+            PurchaseRules purchaseRules) {
         this.policyRepository = policyRepository;
         this.productRepository = productRepository;
+        this.purchaseRules = purchaseRules;
     }
 
     /** 정책이 아직 없으면 모든 값이 비어 있는 응답(404 가 아니다 — 폼이 빈 칸으로 시작한다). */
     @Transactional(readOnly = true)
     public ProductPolicyResponse get(Long productId) {
-        return policyRepository.findById(productId)
-                .map(ProductPolicyService::toResponse)
-                .orElseGet(() -> toResponse(new ProductPolicy(productId)));
+        boolean suspended = purchaseRules.saleSuspended(productId);
+        return toResponse(policyRepository.findById(productId).orElseGet(() -> new ProductPolicy(productId)), suspended);
     }
 
     /**
@@ -96,7 +98,7 @@ public class ProductPolicyService {
         if (shippingType != null) {
             product.setFreeShipping(free);
         }
-        return toResponse(p);
+        return toResponse(p, purchaseRules.saleSuspended(productId));
     }
 
     private static <E extends Enum<E>> E parse(Class<E> type, String raw, String label) {
@@ -118,12 +120,12 @@ public class ProductPolicyService {
         return e == null ? null : e.name();
     }
 
-    static ProductPolicyResponse toResponse(ProductPolicy p) {
+    static ProductPolicyResponse toResponse(ProductPolicy p, boolean saleSuspended) {
         return new ProductPolicyResponse(p.getProductId(), name(p.getTaxType()), name(p.getKcCertType()),
                 p.getKcCertNumber(), name(p.getShippingFeeType()), p.getShippingFee(), p.getFreeShippingThreshold(),
                 p.getShippingLeadDays(), p.getJejuExtraFee(), p.getIslandExtraFee(), p.getReturnShippingFee(),
                 p.getExchangeShippingFee(), p.getReturnAddress(), p.getSaleStartAt(), p.getSaleEndAt(),
-                p.getMaxPurchaseQuantity());
+                p.getMaxPurchaseQuantity(), saleSuspended);
     }
 
 }
