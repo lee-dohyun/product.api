@@ -165,6 +165,23 @@ class ProductSubmissionIntegrationTest {
                 .contains("chemicals", "safety_report_no", "child_protective", "as_contact");
     }
 
+    @Autowired
+    private com.dh.product.repository.CategoryRepository categoryRepositoryForV23;
+
+    @Test
+    @DisplayName("V23 이 가전디지털 아래 생활가전을 만들고 가정용 전기제품 고시 요건을 심는다")
+    void applianceCategoryHasNoticeRequirement() {
+        var appliance = categoryRepositoryForV23.findAll().stream()
+                .filter(c -> "생활가전".equals(c.getName()) && c.getParent() != null && c.getParent().getId() == 9004L)
+                .toList();
+        assertThat(appliance).hasSize(1);
+        var requirement = productAttributeService.getRequirement(appliance.get(0).getId());
+        assertThat(requirement.restricted()).isFalse();
+        assertThat(requirement.requiredAttributes()).filteredOn(a -> a.required()).extracting(a -> a.code())
+                .containsExactly("model_name", "certification", "rated_power", "release_date", "manufacturer",
+                        "made_in", "size", "warranty", "as_contact");
+    }
+
     @Test
     @DisplayName("고시 항목을 비운 세탁청소 상품은 필수 항목만 누락으로 잡히고 판매권한 이슈는 없다")
     void householdProductMissingNoticeFailsWithoutPermissionIssue() {
