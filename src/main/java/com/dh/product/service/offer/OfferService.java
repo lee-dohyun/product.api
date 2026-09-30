@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -14,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dh.product.domain.Offer;
 import com.dh.product.domain.OfferStatus;
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
 import com.dh.product.repository.OfferRepository;
+import com.dh.product.service.PurchaseRules;
 
 @Service
 @Transactional(readOnly = true)
@@ -24,10 +27,13 @@ public class OfferService {
 
     private final OfferRepository offerRepository;
     private final FeaturedOfferSelector featuredOfferSelector;
+    private final PurchaseRules purchaseRules;
 
-    public OfferService(OfferRepository offerRepository, FeaturedOfferSelector featuredOfferSelector) {
+    public OfferService(OfferRepository offerRepository, FeaturedOfferSelector featuredOfferSelector,
+            PurchaseRules purchaseRules) {
         this.offerRepository = offerRepository;
         this.featuredOfferSelector = featuredOfferSelector;
+        this.purchaseRules = purchaseRules;
     }
 
     /**
@@ -42,9 +48,7 @@ public class OfferService {
         if (offerIds == null || offerIds.isEmpty()) {
             return List.of();
         }
-        return offerRepository.findAllByIdWithVariantAndSeller(offerIds).stream()
-                .map(this::toResolveResponse)
-                .toList();
+        return toResolveResponses(offerRepository.findAllByIdWithVariantAndSeller(offerIds));
     }
 
     /**
@@ -63,13 +67,14 @@ public class OfferService {
         if (variantIds == null || variantIds.isEmpty()) {
             return List.of();
         }
-        return offerRepository.findAllByVariantIdInWithVariantAndSeller(variantIds, OfferStatus.ACTIVE).stream()
+        List<Offer> featured = offerRepository
+                .findAllByVariantIdInWithVariantAndSeller(variantIds, OfferStatus.ACTIVE).stream()
                 .collect(Collectors.groupingBy(o -> o.getVariant().getId()))
                 .values().stream()
                 .map(featuredOfferSelector::select)
                 .flatMap(Optional::stream)
-                .map(this::toResolveResponse)
                 .toList();
+        return toResolveResponses(featured);
     }
 
     /** SKU 하나의 대표 오퍼. 1P 에서는 후보가 1건이라 자명하다. */
@@ -166,7 +171,26 @@ public class OfferService {
         return featuredOffersOf(activeIds);
     }
 
-    private OfferResolveResponse toResolveResponse(Offer o) {
+    /**
+     * 정책·판매자 정지 조회를 상품 묶음으로 <b>한 번씩만</b> 해서 응답으로 옮긴다(product.api#108).
+     * 오퍼마다 조회하면 주문 항목 수만큼 쿼리가 나간다(product.api#72 와 같은 실수).
+     */
+    private List<OfferResolveResponse> toResolveResponses(List<Offer> offers) {
+        if (offers.isEmpty()) {
+            return List.of();
+        }
+        List<Long> productIds = offers.stream()
+                .map(o -> o.getVariant().getProduct().getId())
+                .distinct()
+                .toList();
+        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(productIds);
+        Set<Long> suspended = purchaseRules.saleSuspendedOf(productIds);
+        return offers.stream()
+                .map(o -> toResolveResponse(o, policies.get(o.getVariant().getProduct().getId()), suspended))
+                .toList();
+    }
+
+    private OfferResolveResponse toResolveResponse(Offer o, ProductPolicy policy, Set<Long> suspended) {
         return new OfferResolveResponse(
                 o.getId(),
                 o.getVariant().getId(),
@@ -178,6 +202,9 @@ public class OfferService {
                 o.getShippingFee(),
                 o.isFreeShipping(),
                 o.getLeadTimeDays(),
-                o.getStatus() == OfferStatus.ACTIVE);
+                // 오퍼 상태 + variants/resolve 와 동일한 구매 가능 판정. 판정식은 PurchaseRules 에만 둔다.
+                o.getStatus() == OfferStatus.ACTIVE
+                        && purchaseRules.purchasable(o.getVariant(), policy, suspended),
+                purchaseRules.maxPurchaseQuantity(policy));
     }
 }
