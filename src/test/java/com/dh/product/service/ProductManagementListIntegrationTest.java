@@ -167,4 +167,18 @@ class ProductManagementListIntegrationTest {
 
         assertThat(productService.getProduct(id).freeShipping()).isTrue();
     }
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    /** product.api#92 - V21 이 시드의 쿠팡 배지명(로켓배송·판매자로켓)을 "최적 배송"으로 모두 바꾼다. */
+    @Test
+    void shippingBadgeRenamedByMigration() {
+        Integer rocket = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM products WHERE shipping_badge IN ('로켓배송', '판매자로켓')", Integer.class);
+        Integer renamed = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM products WHERE shipping_badge = '최적 배송'", Integer.class);
+        assertThat(rocket).isZero();
+        assertThat(renamed).isPositive();
+    }
 }
