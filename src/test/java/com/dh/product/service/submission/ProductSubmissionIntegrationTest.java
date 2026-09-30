@@ -151,6 +151,40 @@ class ProductSubmissionIntegrationTest {
     }
 
     @Test
+    @DisplayName("V22 가 생활용품 하위 3개 카테고리에 고시 요건을 심는다 — 판매권한 불필요")
+    void householdCategoriesHaveNoticeRequirement() {
+        var kitchen = productAttributeService.getRequirement(9115L);
+        assertThat(kitchen.restricted()).isFalse();
+        assertThat(kitchen.requiredDocuments()).isEmpty();
+        assertThat(kitchen.requiredAttributes()).filteredOn(a -> a.required()).extracting(a -> a.code())
+                .containsExactly("model_name", "material", "components", "size", "manufacturer", "made_in",
+                        "warranty", "as_contact");
+        assertThat(productAttributeService.getRequirement(9116L).requiredAttributes()).extracting(a -> a.code())
+                .contains("model_name", "made_in", "manufacturer", "as_contact");
+        assertThat(productAttributeService.getRequirement(9117L).requiredAttributes()).extracting(a -> a.code())
+                .contains("chemicals", "safety_report_no", "child_protective", "as_contact");
+    }
+
+    @Test
+    @DisplayName("고시 항목을 비운 세탁청소 상품은 필수 항목만 누락으로 잡히고 판매권한 이슈는 없다")
+    void householdProductMissingNoticeFailsWithoutPermissionIssue() {
+        Long productId = productService.createProduct(new ProductCreateRequest(
+                9117L, "테스트 세탁세제", "설명", new BigDecimal("9900"), 10,
+                List.of("https://image.posselect.com/cdn/products/food.png"),
+                null, null, null, null, false, "테스트브랜드",
+                supplier.getId(), ProductStatus.DRAFT.name())).id();
+
+        Long submissionId = submissionService.submit(productId, "pm@posselect.com");
+        validationPublisher.publish(submissionId);
+
+        List<SubmissionIssue> issues = submissionService.issuesOf(submissionId);
+        assertThat(issues).extracting(SubmissionIssue::getCode).doesNotContain("CATEGORY_PERMISSION_REQUIRED");
+        assertThat(issues).filteredOn(i -> "ATTRIBUTE_REQUIRED".equals(i.getCode()))
+                .extracting(SubmissionIssue::getField)
+                .contains("safety_report_no", "chemicals", "as_contact");
+    }
+
+    @Test
     @DisplayName("고시 항목을 비운 식품 상품은 NEEDS_FIX 로 떨어지고 누락 항목이 필드 단위로 남는다")
     void emptyNoticeAttributesFailValidation() {
         grantFoodPermission();
