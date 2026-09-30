@@ -221,6 +221,16 @@ class ProductSubmissionIntegrationTest {
         assertThat(productRepository.findById(productId).orElseThrow().getStatus())
                 .as("승인 시점에만 상품이 실제로 노출된다")
                 .isEqualTo(ProductStatus.LIVE);
+
+        // product.api#102 - 승인된 상품은 지정한 카테고리(소분류)와 그 상위(대분류) 목록에 모두 나온다.
+        assertThat(productService.listProducts(FRESH_FOOD_CATEGORY_ID, null))
+                .extracting(p -> p.id()).contains(productId);
+        assertThat(productService.listProducts(9003L, null)).as("식품(대분류)")
+                .extracting(p -> p.id()).contains(productId);
+        assertThat(productService.listProducts(9003L, "방울토마토")).as("대분류 + 검색어")
+                .extracting(p -> p.id()).contains(productId);
+        assertThat(productService.listProducts(9001L, null)).as("다른 대분류(패션의류)에는 없다")
+                .extracting(p -> p.id()).doesNotContain(productId);
     }
 
     @Test

@@ -1,7 +1,10 @@
 package com.dh.product.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,10 +118,13 @@ public class ProductService {
         boolean hasCategory = categoryId != null;
         boolean hasQuery = q != null && !q.isBlank();
 
+        // 카테고리는 자기 + 모든 하위 카테고리다(product.api#102). 상품은 소분류에 달리는데 헤더 메뉴는
+        // 대분류도 ?category= 로 링크하므로, 정확히 그 카테고리만 보면 대분류 화면이 비고 승인된 상품이
+        // 카테고리 메뉴에서 보이지 않는다.
         if (hasCategory && hasQuery) {
-            products = productRepository.findByCategoryIdAndNameContainingIgnoreCase(categoryId, q);
+            products = productRepository.findByCategoryIdInAndNameContainingIgnoreCase(selfAndDescendants(categoryId), q);
         } else if (hasCategory) {
-            products = productRepository.findByCategoryId(categoryId);
+            products = productRepository.findByCategoryIdIn(selfAndDescendants(categoryId));
         } else if (hasQuery) {
             products = productRepository.findByNameContainingIgnoreCase(q);
         } else {
@@ -126,6 +132,23 @@ public class ProductService {
         }
 
         return toSummaries(includeHidden ? products : onlyLive(products));
+    }
+
+    /** 카테고리 id 와 그 모든 하위 카테고리 id(깊이 제한 없음). 카테고리는 수십 개라 한 번에 읽어 메모리에서 푼다. */
+    private Set<Long> selfAndDescendants(Long categoryId) {
+        Map<Long, List<Long>> childrenByParent = categoryRepository.findAll().stream()
+                .filter(c -> c.getParent() != null)
+                .collect(Collectors.groupingBy(c -> c.getParent().getId(),
+                        Collectors.mapping(Category::getId, Collectors.toList())));
+        Set<Long> ids = new LinkedHashSet<>();
+        Deque<Long> queue = new ArrayDeque<>(List.of(categoryId));
+        while (!queue.isEmpty()) {
+            Long id = queue.poll();
+            if (ids.add(id)) {
+                queue.addAll(childrenByParent.getOrDefault(id, List.of()));
+            }
+        }
+        return ids;
     }
 
     /**

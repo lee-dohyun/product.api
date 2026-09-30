@@ -44,6 +44,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByCategoryIdAndNameContainingIgnoreCase(Long categoryId, String name);
 
+    /** 카테고리 목록 + 검색어(product.api#102) — 카테고리는 (자기 + 하위) 묶음으로 넘긴다. */
+    List<Product> findByCategoryIdInAndNameContainingIgnoreCase(Collection<Long> categoryIds, String name);
+
     List<Product> findByOrderByCreatedAtDesc(Pageable pageable);
 
     List<Product> findByOrderByIdDesc(Pageable pageable);
