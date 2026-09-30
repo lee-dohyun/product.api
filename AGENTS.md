@@ -155,6 +155,21 @@ Issue를 조회해 겹치는 작업이 이미 `In Progress`인지 확인하고, 
 - 로그인 전에 호출돼야 하는 경로를 추가하면 `gateway`의 `PUBLIC_EXACT_PATHS` / `PUBLIC_PATH_PREFIXES`에도
   **반드시 같이** 등록해야 한다. 이 저장소의 라우팅만으로는 아무 효력이 없다(캐논 §3).
 
+## 주문 확정 경로의 `active` 판정은 한 곳이다
+
+`/internal/variants/resolve`와 `/internal/offers/resolve`가 내려주는 `active`는 order.api가 **주문 가능
+여부**로 그대로 쓰는 값이고, 판정은 **`PurchaseRules.purchasable(variant, policy, suspendedIds)` 하나**에만
+있다(product.api#108). 오퍼 상태·variant 활성·상품 공개(`isPubliclyVisible`)·판매 기간·판매자 정지를
+합친 값이며, `maxPurchaseQuantity`도 두 응답에 같이 실린다.
+
+- **판정식을 호출부에 복사하지 말 것.** 오퍼 경로가 오퍼 상태만 보던 동안 숨김 상품(#74)·판매 기간
+  밖(#97)·판매자 정지·해지(#100) 차단이 전부 빠져 있었고, order.api#14가 주문 확정을 그 경로로
+  갈아타는 순간 한꺼번에 풀릴 상태였다.
+- 확정 경로를 새로 만들면 그 함수를 호출하고, 정책·정지 조회는 **productId 묶음으로 한 번씩**
+  (`policiesOf`/`saleSuspendedOf`) — 건당 조회하면 주문 항목 수만큼 쿼리가 나간다(#72와 같은 실수).
+- 동등성은 `OfferPurchaseRulesParityIntegrationTest`가 세 경로(`variants/resolve`, `offers/resolve?ids`,
+  `offers/resolve?variantIds`)를 나란히 비교해 고정한다. 응답 필드를 늘릴 때 이 테스트도 같이 늘릴 것.
+
 ## 테스트가 무엇을 증명하고 무엇을 못 하는가
 
 `InventoryDeductionIntegrationTest` / `InventoryRestorationIntegrationTest`는 `@Testcontainers` +
