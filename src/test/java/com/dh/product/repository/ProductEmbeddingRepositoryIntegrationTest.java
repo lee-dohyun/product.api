@@ -2,6 +2,7 @@ package com.dh.product.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,7 +38,8 @@ class ProductEmbeddingRepositoryIntegrationTest {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"))
+            .withStartupTimeout(Duration.ofMinutes(3));
 
     @Autowired
     private ProductEmbeddingRepository embeddingRepository;

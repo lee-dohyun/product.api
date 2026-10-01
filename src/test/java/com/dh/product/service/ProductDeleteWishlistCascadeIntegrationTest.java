@@ -30,6 +30,7 @@ import com.dh.product.repository.ChannelRepository;
 import com.dh.product.repository.ProductRepository;
 import com.dh.product.repository.SellerRepository;
 import com.dh.product.repository.WishlistRepository;
+import java.time.Duration;
 
 /**
  * V6가 wishlist_items.product_id FK에 ON DELETE CASCADE를 빠뜨려서, 찜된 상품을
@@ -45,7 +46,8 @@ class ProductDeleteWishlistCascadeIntegrationTest {
     // V15(product.api#46)부터 Flyway 히스토리에 vector 확장이 포함돼, 확장 없는 stock 이미지로는
     // 이 테스트 자체와 무관하게 Flyway 마이그레이션 단계에서 컨텍스트 부팅이 실패한다.
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"))
+            .withStartupTimeout(Duration.ofMinutes(3));
 
     @TestConfiguration
     static class LocalCacheConfig {

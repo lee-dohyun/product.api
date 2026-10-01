@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +67,8 @@ class CategoryManagementIntegrationTest {
     // V15 부터 Flyway 히스토리에 vector 확장이 포함돼 stock postgres 이미지로는 마이그레이션이
     // 실패한다(InventoryDeductionIntegrationTest 와 같은 이유).
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"))
+            .withStartupTimeout(Duration.ofMinutes(3));
 
     /** Redis 를 띄우지 않으려고 로컬 캐시로 바꾼다. 이름을 빠뜨리면 evict 시점에 터진다. */
     @TestConfiguration
