@@ -10,11 +10,12 @@ import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductStatus;
 
-public interface ProductRepository extends JpaRepository<Product, Long> {
+public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
 
     /**
      * 판매자가 판매 가능(ACTIVE)이 아닌 상품 id(product.api#100). 정지·해지 판매자의 상품은 노출은 두고

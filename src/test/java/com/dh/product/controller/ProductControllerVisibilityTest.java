@@ -14,7 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.dh.product.config.AdminJwtVerifier;
 import com.dh.product.config.HiddenProductAccess;
@@ -90,16 +93,37 @@ class ProductControllerVisibilityTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token");
 
-        controller.list(null, null, request);
+        controller.list(null, null, null, null, request);
 
         verify(productService).listProducts(null, null, true);
     }
 
     @Test
     void anonymousListExcludesHidden() {
-        controller.list(null, null, new MockHttpServletRequest());
+        controller.list(null, null, null, null, new MockHttpServletRequest());
 
         verify(productService).listProducts(null, null, false);
+    }
+
+    /** product.api#107 - page/size 를 주면 그 쪽만, 전체 개수는 헤더로. 본문은 배열 그대로다. */
+    @Test
+    void pagedListReturnsTotalCountHeader() {
+        given(productService.listProductsPage(null, null, false, 1, 20))
+                .willReturn(new PageImpl<>(List.of(), PageRequest.of(1, 20), 45));
+
+        var response = controller.list(null, null, 1, null, new MockHttpServletRequest());
+
+        assertThat(response.getHeaders().getFirst("X-Total-Count")).isEqualTo("45");
+        assertThat(response.getBody()).isEmpty();
+    }
+
+    @Test
+    void pagedListRejectsOutOfRange() {
+        for (Integer[] bad : new Integer[][] { { -1, 20 }, { 0, 0 }, { 0, 101 } }) {
+            assertThatThrownBy(() -> controller.list(null, null, bad[0], bad[1], new MockHttpServletRequest()))
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            e -> assertThat(e.getStatusCode().value()).isEqualTo(400));
+        }
     }
 
     /** admin.front#50 - 관리자 목록(판매자·상태 포함)은 직원 전용이다. 비직원에게는 존재 자체를 숨긴다(404). */

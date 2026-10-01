@@ -3,6 +3,7 @@ package com.dh.product.controller;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.dh.product.config.HiddenProductAccess;
 import com.dh.product.domain.ProductStatus;
@@ -35,6 +37,10 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/products")
 public class ProductController {
 
+    static final String TOTAL_COUNT_HEADER = "X-Total-Count";
+    static final int DEFAULT_PAGE_SIZE = 20;
+    static final int MAX_PAGE_SIZE = 100;
+
     private final ProductService productService;
     private final HiddenProductAccess hiddenProductAccess;
     private final ProductPolicyService productPolicyService;
@@ -49,13 +55,33 @@ public class ProductController {
     /**
      * 공개 목록은 LIVE 만 준다(product.api#74). 관리자 화면(admin.front)이 staff 토큰을 실어 부르면
      * 임시저장·검수 중·판매중지 상품까지 전부 준다.
+     *
+     * <p>page·size 를 둘 다 안 주면 전부를 돌려준다(기존 소비자 호환). 하나라도 주면 그 쪽만 최신 등록 순으로
+     * 주고 조건에 맞는 전체 개수를 {@code X-Total-Count} 헤더에 싣는다(product.api#107). 응답 본문은
+     * 두 경우 모두 배열이다.
      */
     @GetMapping
-    public List<ProductSummaryResponse> list(
+    public ResponseEntity<List<ProductSummaryResponse>> list(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
             HttpServletRequest request) {
-        return productService.listProducts(categoryId, q, hiddenProductAccess.canSeeHidden(request));
+        boolean includeHidden = hiddenProductAccess.canSeeHidden(request);
+        if (page == null && size == null) {
+            return ResponseEntity.ok(productService.listProducts(categoryId, q, includeHidden));
+        }
+        int pageNumber = page != null ? page : 0;
+        int pageSize = size != null ? size : DEFAULT_PAGE_SIZE;
+        if (pageNumber < 0 || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "page must be >= 0 and size between 1 and " + MAX_PAGE_SIZE);
+        }
+        Page<ProductSummaryResponse> result =
+                productService.listProductsPage(categoryId, q, includeHidden, pageNumber, pageSize);
+        return ResponseEntity.ok()
+                .header(TOTAL_COUNT_HEADER, String.valueOf(result.getTotalElements()))
+                .body(result.getContent());
     }
 
     /**
