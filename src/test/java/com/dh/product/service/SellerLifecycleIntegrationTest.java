@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +60,8 @@ class SellerLifecycleIntegrationTest {
     // V15 가 CREATE EXTENSION vector 를 하고, 그 시점부터 이 저장소의 모든 @SpringBootTest 가
     // Flyway 마이그레이션 단계에서 부팅에 실패한다 - 머지 순서와 무관하게 깨지지 않도록 미리 맞춘다.
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+            DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"))
+            .withStartupTimeout(Duration.ofMinutes(3));
 
     @TestConfiguration
     static class LocalCacheConfig {
