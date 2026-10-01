@@ -17,6 +17,11 @@ import java.util.stream.Collectors;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 import com.dh.product.config.CacheNames;
 import org.springframework.stereotype.Service;
@@ -132,6 +137,42 @@ public class ProductService {
         }
 
         return toSummaries(includeHidden ? products : onlyLive(products));
+    }
+
+    /**
+     * 공개 목록의 한 쪽(product.api#107). 조건은 {@link #listProducts(Long, String, boolean)} 와 같고 최신 등록 순이다.
+     * 상태·카테고리·검색어를 전부 쿼리에 넣는다 - 조회 후 걸러내면 쪽이 덜 차고 total 이 틀린다.
+     *
+     * @param page 0 부터. 범위 검사는 호출부(ProductController)가 한다.
+     */
+    public Page<ProductSummaryResponse> listProductsPage(Long categoryId, String q, boolean includeHidden,
+            int page, int size) {
+        Set<Long> categoryIds = categoryId != null ? selfAndDescendants(categoryId) : null;
+        String namePattern = q != null && !q.isBlank() ? "%" + escapeLike(q.toLowerCase()) + "%" : null;
+
+        Specification<Product> spec = (root, query, cb) -> {
+            var predicate = cb.conjunction();
+            if (!includeHidden) {
+                predicate = cb.and(predicate, cb.equal(root.get("status"), ProductStatus.LIVE));
+            }
+            if (categoryIds != null) {
+                predicate = cb.and(predicate, root.get("category").get("id").in(categoryIds));
+            }
+            if (namePattern != null) {
+                predicate = cb.and(predicate, cb.like(cb.lower(root.get("name")), namePattern, '\\'));
+            }
+            return predicate;
+        };
+
+        Page<Product> products = productRepository.findAll(spec,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
+        // toSummaries 는 입력 순서를 그대로 유지한다.
+        return new PageImpl<>(toSummaries(products.getContent()), products.getPageable(), products.getTotalElements());
+    }
+
+    /** LIKE 패턴에서 %, _ 와 이스케이프 문자 자신을 글자 그대로 만든다. */
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 카테고리 id 와 그 모든 하위 카테고리 id(깊이 제한 없음). 카테고리는 수십 개라 한 번에 읽어 메모리에서 푼다. */

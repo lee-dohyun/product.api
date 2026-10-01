@@ -12,7 +12,7 @@
 
 ## API
 
-- `GET /api/products` — 목록 (캐싱 안 함)
+- `GET /api/products` — 목록 (캐싱 안 함). `page`(0부터)·`size`(1~100, 기본 20)를 주면 그 쪽만 최신 등록 순으로 주고 전체 개수는 `X-Total-Count` 헤더. 둘 다 없으면 전부(#107)
 - `GET /api/products/{id}` — 단일 상품 상세 (Redis 캐싱)
 - `POST /api/products` / `PUT /api/products/{id}` / `DELETE /api/products/{id}` — 수정 시 캐시 evict
 - `GET /api/categories` / `POST /api/categories`
