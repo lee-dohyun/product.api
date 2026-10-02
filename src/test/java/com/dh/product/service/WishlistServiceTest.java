@@ -142,4 +142,12 @@ class WishlistServiceTest {
         // then
         verify(wishlistRepository).delete(item);
     }
+
+    @Test
+    @DisplayName("찜한 상품 ID 는 그 사용자의 것만 조회한다")
+    void getWishlistProductIds() {
+        given(wishlistRepository.findProductIdsByUserId("user-123")).willReturn(List.of(3L, 1L));
+
+        assertThat(wishlistService.getWishlistProductIds("user-123")).containsExactly(3L, 1L);
+    }
 }
