@@ -44,7 +44,7 @@ class InventoryDeductionServiceTest {
     @DisplayName("동시 요청이 유니크 제약에 걸리면 실패가 아니라 현재 잔고 반환으로 처리한다")
     void 동시_중복_요청은_성공으로_취급한다() {
         when(deductor.deductOnce(ORDER_ID, items))
-                .thenThrow(new DataIntegrityViolationException("uq_inventory_transactions_order_deduct"));
+                .thenThrow(new DataIntegrityViolationException("uq_inventory_transactions_order_active_deduct"));
         when(deductor.currentBalances(items)).thenReturn(balances);
 
         assertThat(service.deductForOrder(ORDER_ID, items)).isEqualTo(balances);

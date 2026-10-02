@@ -72,12 +72,13 @@ list — it goes stale.
    `pg_constraint` lookup pattern from V4.
 5. If `InventoryTransactionType` gained a value, confirm the migration widens the corresponding `CHECK`.
 6. Apply expand-contract (canon §3): never add a column and drop another in the same release.
-7. **Preserve the two DB-level invariants in V3** — the partial unique index
-   `uq_inventory_transactions_order_deduct (order_id, inventory_id) WHERE type = 'ORDER_DEDUCT'` is the
-   second line of defence behind `InventoryDeductor.deductOnce`'s history check, and
-   `inventories_quantity_non_negative CHECK (quantity >= 0)` is the last thing standing between a logic bug
-   and negative stock. Application code appearing to make them redundant is not a reason to drop them
-   (canon §3, posselect #211).
+7. **Preserve the two DB-level inventory invariants** — the partial unique index
+   `uq_inventory_transactions_order_active_deduct (order_id, inventory_id) WHERE type = 'ORDER_DEDUCT' AND
+   reversed = FALSE` (V24; it narrows V3's `uq_inventory_transactions_order_deduct` so a restored order can
+   be deducted again, product.api#115) is the second line of defence behind `InventoryDeductor.deductOnce`'s
+   active-deduct check, and `inventories_quantity_non_negative CHECK (quantity >= 0)` (V3) is the last thing
+   standing between a logic bug and negative stock. Application code appearing to make them redundant is
+   not a reason to drop them (canon §3, posselect #211).
 
 ## How to verify before pushing
 

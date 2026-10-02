@@ -55,17 +55,18 @@ public class InventoryDeductor {
     }
 
     /**
-     * 같은 orderId로 몇 번을 호출해도 재고는 한 번만 뺀다. 항목 중 하나라도 재고가 부족하면
-     * 전체가 롤백된다.
+     * 같은 orderId로 몇 번을 호출해도 재고는 한 번만 뺀다 - 그 차감이 복원으로 되돌려지기 전까지.
+     * 항목 중 하나라도 재고가 부족하면 전체가 롤백된다.
      *
      * <p>같은 주문의 차감 요청이 <i>동시에</i> 들어와 아래 이력 확인을 둘 다 통과하는 경우는
-     * {@code uq_inventory_transactions_order_deduct} 유니크 인덱스가 뒤엣것을 막는다. 그 예외를
+     * {@code uq_inventory_transactions_order_active_deduct} 유니크 인덱스(V24)가 뒤엣것을 막는다. 그 예외를
      * 성공으로 바꿔 주는 건 트랜잭션 바깥인 {@link InventoryDeductionService}의 몫이다.
      */
     @Transactional
     public List<InventoryBalanceResponse> deductOnce(Long orderId, List<DeductItem> items) {
-        if (inventoryTransactionRepository.existsByOrderIdAndType(
-                orderId, InventoryTransactionType.ORDER_DEDUCT)) {
+        // 판정은 "되돌려지지 않은 차감이 있는가"다(product.api#115). 이력 존재만 보면, 결제 확정 실패로
+        // 보상 복원이 나간 주문을 다시 결제할 때 차감이 건너뛰어져 재고가 안 빠진 채 팔린다.
+        if (inventoryTransactionRepository.existsActiveDeduct(orderId)) {
             log.info("이미 차감된 주문 - 재차감 없이 현재 잔고를 반환 (orderId={})", orderId);
             return balancesOf(items);
         }
@@ -82,9 +83,10 @@ public class InventoryDeductor {
 
     @Transactional
     public List<InventoryBalanceResponse> restoreOnce(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
-        if (inventoryTransactionRepository.existsByOrderIdAndType(
-                orderId, InventoryTransactionType.ORDER_RESTORE)) {
-            log.info("이미 복원된 주문 - 중복 복원 없이 현재 잔고를 반환 (orderId={})", orderId);
+        // 되돌릴 차감을 얻은 요청만 재고를 더한다(product.api#115). 0 이면 이미 복원됐거나 차감된 적이
+        // 없는 주문이다 - 후자를 그냥 더하면 없던 재고가 생긴다.
+        if (inventoryTransactionRepository.markActiveDeductsReversed(orderId) == 0) {
+            log.info("되돌릴 차감이 없는 주문 - 복원 없이 현재 잔고를 반환 (orderId={})", orderId);
             return items.stream()
                     .map(item -> new InventoryBalanceResponse(
                             item.variantId(),

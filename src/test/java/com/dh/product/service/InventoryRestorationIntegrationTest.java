@@ -174,4 +174,102 @@ class InventoryRestorationIntegrationTest {
         assertThat(retry).singleElement()
                 .extracting(InventoryBalanceResponse::remainingQuantity).isEqualTo(10);
     }
+
+    /**
+     * product.api#115 - 결제 확정 실패로 보상 복원이 나간 주문을 고객이 다시 결제하는 경우다.
+     * 차감 판정이 "차감 이력이 있는가"뿐이면 두 번째 차감이 건너뛰어져 재고가 안 빠진 채 팔린다.
+     */
+    @Test
+    @DisplayName("복원된 주문을 다시 차감하면 재고가 다시 빠진다")
+    void 복원_뒤_재차감() {
+        deductionService.deductForOrder(2003L, threeUnitsDeduct());
+        deductionService.restoreForOrder(2003L, threeUnitsRestore());
+        assertThat(committedQuantity()).isEqualTo(10);
+
+        deductionService.deductForOrder(2003L, threeUnitsDeduct());
+
+        assertThat(committedQuantity()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("복원 뒤 재차감한 주문을 다시 복원(환불)하면 재고가 돌아온다")
+    void 재차감_뒤_재복원() {
+        deductionService.deductForOrder(2004L, threeUnitsDeduct());
+        deductionService.restoreForOrder(2004L, threeUnitsRestore());
+        deductionService.deductForOrder(2004L, threeUnitsDeduct());
+
+        deductionService.restoreForOrder(2004L, threeUnitsRestore());
+        deductionService.restoreForOrder(2004L, threeUnitsRestore());
+
+        assertThat(committedQuantity()).isEqualTo(10);
+        assertThat(restoreRowCount(2004L)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("차감된 적 없는 주문의 복원은 재고를 늘리지 않는다")
+    void 차감_없는_복원은_무시() {
+        deductionService.restoreForOrder(2005L, threeUnitsRestore());
+
+        assertThat(committedQuantity()).isEqualTo(10);
+        assertThat(restoreRowCount(2005L)).isZero();
+    }
+
+    @Test
+    @DisplayName("같은 주문의 복원이 동시에 들어와도 한 번만 더해진다")
+    void 동시_복원은_한_번만() throws Exception {
+        deductionService.deductForOrder(2006L, threeUnitsDeduct());
+        int threads = 6;
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                start.await();
+                return deductionService.restoreForOrder(2006L, threeUnitsRestore());
+            }));
+        }
+        start.countDown();
+        for (var f : futures) {
+            f.get(30, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        pool.shutdown();
+
+        assertThat(committedQuantity()).isEqualTo(10);
+        assertThat(restoreRowCount(2006L)).isEqualTo(1);
+    }
+
+    /** V24 가 좁힌 유니크 인덱스(되돌려지지 않은 차감)가 재차감 경로에서도 최종 방어로 남는지 본다. */
+    @Test
+    @DisplayName("복원된 주문의 재차감이 동시에 들어와도 한 번만 빠진다")
+    void 동시_재차감은_한_번만() throws Exception {
+        deductionService.deductForOrder(2007L, threeUnitsDeduct());
+        deductionService.restoreForOrder(2007L, threeUnitsRestore());
+        int threads = 6;
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                start.await();
+                return deductionService.deductForOrder(2007L, threeUnitsDeduct());
+            }));
+        }
+        start.countDown();
+        int failures = 0;
+        for (var f : futures) {
+            try {
+                f.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (java.util.concurrent.ExecutionException e) {
+                // 재고 행의 낙관적 잠금(@Version)에 진 요청은 예외로 끝난다 - 차감은 반영되지 않는다.
+                failures++;
+            }
+        }
+        pool.shutdown();
+
+        assertThat(failures).isLessThan(threads);
+        assertThat(committedQuantity()).isEqualTo(7);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM inventory_transactions WHERE order_id = 2007 AND type = 'ORDER_DEDUCT'"
+                        + " AND reversed = false", Integer.class)).isEqualTo(1);
+    }
 }

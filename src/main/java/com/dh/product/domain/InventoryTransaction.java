@@ -49,6 +49,13 @@ public class InventoryTransaction {
     @Column(name = "order_id")
     private Long orderId;
 
+    /**
+     * ORDER_DEDUCT 행 전용 - 이 차감이 복원으로 되돌려졌는가(product.api#115). 주문의 차감·복원 멱등 판정은
+     * "이력이 있는가"가 아니라 "되돌려지지 않은 차감이 있는가"다. 다른 유형의 행에서는 항상 false.
+     */
+    @Column(nullable = false)
+    private boolean reversed = false;
+
     @Column(length = 200)
     private String reason;
 
