@@ -77,10 +77,16 @@ Issue를 조회해 겹치는 작업이 이미 `In Progress`인지 확인하고, 
   이 패턴을 복사할 것.
 - `InventoryTransaction.type`이 이 저장소 유일한 `@Enumerated(STRING)` 필드다. enum에 값을 추가하면
   CHECK 제약은 자동으로 안 넓혀지므로 마이그레이션에 `ALTER`를 포함한다.
-- **V3의 DB 제약 두 개를 지우지 말 것**: 부분 유니크 인덱스
-  `uq_inventory_transactions_order_deduct (order_id, inventory_id) WHERE type = 'ORDER_DEDUCT'`와
-  `inventories_quantity_non_negative CHECK (quantity >= 0)`. 응용 로직이 중복돼 보여도 그게 마지막
-  방어선이다(캐논 §3, posselect #211).
+- **재고의 DB 제약 두 개를 지우지 말 것**: 부분 유니크 인덱스
+  `uq_inventory_transactions_order_active_deduct (order_id, inventory_id) WHERE type = 'ORDER_DEDUCT' AND
+  reversed = FALSE`(V24 — V3의 `uq_inventory_transactions_order_deduct`를 "되돌려지지 않은 차감"으로 좁힌
+  것)와 `inventories_quantity_non_negative CHECK (quantity >= 0)`(V3). 응용 로직이 중복돼 보여도 그게
+  마지막 방어선이다(캐논 §3, posselect #211).
+- **주문 차감·복원의 멱등 판정은 "이력이 있는가"가 아니라 "되돌려지지 않은 차감이 있는가"다**(#115).
+  차감은 `existsActiveDeduct`가 참이면 건너뛰고, 복원은 `markActiveDeductsReversed`가 행을 얻은 요청만
+  재고를 더한다(조회 후 판정이 아니라 UPDATE 한 번 — 동시 복원 중 하나만 얻는다). 이력 존재만 보던
+  시절에는 보상 복원이 나간 주문을 다시 결제하면 재고가 안 빠졌고, 차감된 적 없는 주문의 복원은 재고를
+  늘렸다. 판정을 `existsBy...Type` 류로 되돌리지 말 것.
 
 ## Redis 캐시 — 무효화가 자동이 아니다
 
