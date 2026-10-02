@@ -1,4 +1,6 @@
 package com.dh.product.controller;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -40,6 +42,11 @@ public class WishlistController {
         Page<WishlistResponse> responses = wishlistService.getWishlists(userId, pageRequest)
                 .map(WishlistResponse::from);
         return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/product-ids")
+    public ResponseEntity<List<Long>> getWishlistProductIds(@RequestHeader("X-User-Id") String userId) {
+        return ResponseEntity.ok(wishlistService.getWishlistProductIds(userId));
     }
 
     @DeleteMapping("/{productId}")

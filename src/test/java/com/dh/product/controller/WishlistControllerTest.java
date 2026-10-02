@@ -85,6 +85,19 @@ class WishlistControllerTest {
     }
 
     @Test
+    @DisplayName("찜한 상품 ID 조회 API - 페이지 없이 전체 ID 를 배열로 돌려준다")
+    void getWishlistProductIds() throws Exception {
+        String userId = "user-1";
+        given(wishlistService.getWishlistProductIds(userId)).willReturn(List.of(100L, 200L));
+
+        mockMvc.perform(get("/api/wishlists/product-ids").header("X-User-Id", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0]").value(100L))
+                .andExpect(jsonPath("$[1]").value(200L));
+    }
+
+    @Test
     @DisplayName("찜 취소 API")
     void removeWishlist() throws Exception {
         String userId = "user-1";

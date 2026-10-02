@@ -1,4 +1,6 @@
 package com.dh.product.service;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,15 @@ public class WishlistService {
     @Transactional(readOnly = true)
     public Page<WishlistItem> getWishlists(String userId, Pageable pageable) {
         return wishlistRepository.findByUserId(userId, pageable);
+    }
+
+    /**
+     * 상품 카드 여러 장의 찜 여부를 한 번에 표시하기 위한 조회(gateway#304).
+     * 목록 API 는 페이지 단위(기본 10건)라 "이 상품을 찜했는가"를 판정할 수 없다.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> getWishlistProductIds(String userId) {
+        return wishlistRepository.findProductIdsByUserId(userId);
     }
 
     @Transactional
