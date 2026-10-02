@@ -1,0 +1,1 @@
+-- #68 guard self-test, 머지 금지
