@@ -1,0 +1,30 @@
+# main 의 마이그레이션이 바뀌면, 열린 PR 중 같은 Flyway 버전을 추가하는 것을 찾아 실패 상태 + 코멘트로 표시한다 (#68).
+#
+# PR CI 는 base 가 움직여도 다시 돌지 않는다. 그래서 "PR 이 열린 사이 main 에 같은 버전이 먼저 머지된" 경우를
+# 잡는 검사가 하나도 없었다(#63/#64 V17 중복). 이 워크플로는 그 시점(main 이 바뀐 순간)에 열린 PR 을 다시 본다.
+name: Flyway open-PR guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/main/resources/db/migration/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check open PRs against main migrations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          git fetch -q origin main
+          bash scripts/ci/flyway-open-pr-guard.sh
