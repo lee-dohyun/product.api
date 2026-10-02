@@ -105,15 +105,15 @@ public class PurchaseRules {
      */
     public void checkCart(Long productId, int totalQuantityForProduct) {
         if (saleSuspended(productId)) {
-            throw new PurchaseRuleViolationException("판매자 사정으로 판매가 중단된 상품입니다.");
+            throw new PurchaseRuleViolationException("purchase.saleSuspended");
         }
         ProductPolicy policy = policyRepository.findById(productId).orElse(null);
         if (!withinSalePeriod(policy)) {
-            throw new PurchaseRuleViolationException("지금은 판매 기간이 아닙니다.");
+            throw new PurchaseRuleViolationException("purchase.outOfSalePeriod");
         }
         Integer max = maxPurchaseQuantity(policy);
         if (max != null && totalQuantityForProduct > max) {
-            throw new PurchaseRuleViolationException("이 상품은 1회 최대 " + max + "개까지 구매할 수 있습니다.");
+            throw new PurchaseRuleViolationException("purchase.maxQuantityExceeded", max);
         }
     }
 }

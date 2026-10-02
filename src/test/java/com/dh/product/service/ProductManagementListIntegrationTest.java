@@ -144,7 +144,7 @@ class ProductManagementListIntegrationTest {
         assertThat(productPolicyService.get(id).saleSuspended()).isTrue();
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> purchaseRules.checkCart(id, 1))
                 .isInstanceOf(PurchaseRuleViolationException.class)
-                .hasMessageContaining("판매가 중단");
+                .hasMessage("purchase.saleSuspended");
 
         seller.setStatus(com.dh.product.domain.SellerStatus.ACTIVE);
         sellerRepository.save(seller);
