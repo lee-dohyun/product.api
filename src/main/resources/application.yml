@@ -18,6 +18,12 @@ spring:
         # product_images 조회가 129회 나갔다(product.api#84, Jaeger 실측).
         default_batch_fetch_size: 100
 
+  messages:
+    basename: messages
+    encoding: UTF-8
+    # 지원하지 않는 로케일은 서버 JVM 로케일이 아니라 기본 번들(한국어)로 떨어진다.
+    fallback-to-system-locale: false
+
   flyway:
     enabled: true
     baseline-on-migrate: true

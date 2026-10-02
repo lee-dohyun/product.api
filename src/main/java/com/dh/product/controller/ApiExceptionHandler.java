@@ -2,10 +2,13 @@ package com.dh.product.controller;
 
 import java.util.NoSuchElementException;
 
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 import com.dh.product.service.InvalidProductPolicyException;
+import com.dh.product.service.PurchaseRuleViolationException;
 import com.dh.product.service.partner.InvalidPartnerRequestException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,6 +20,24 @@ import com.dh.product.service.rag.RagUnavailableException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    // Messages 헬퍼 대신 MessageSource 를 직접 받는다 — @WebMvcTest 슬라이스는 @Component 인 Messages 를
+    // 싣지 않아 컨텍스트가 안 뜨지만, MessageSource 는 자동설정이라 슬라이스에도 항상 있다.
+    private final MessageSource messageSource;
+
+    public ApiExceptionHandler(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
+    /**
+     * 고객에게 보이는 구매 불가 사유 — 요청 로케일로 해석해서 내려준다(gateway#68).
+     * IllegalStateException 핸들러보다 구체적이므로 Spring 이 이쪽을 먼저 고른다.
+     */
+    @ExceptionHandler(PurchaseRuleViolationException.class)
+    public ResponseEntity<String> handlePurchaseRule(PurchaseRuleViolationException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(messageSource.getMessage(e.getMessageKey(), e.getMessageArgs(), LocaleContextHolder.getLocale()));
+    }
 
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<String> handleNotFound(NoSuchElementException e) {

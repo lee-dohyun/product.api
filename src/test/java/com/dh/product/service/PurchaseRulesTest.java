@@ -60,12 +60,13 @@ class PurchaseRulesTest {
     void checkCartRejectsOutOfPeriodAndOverMax() {
         given(repository.findById(1L)).willReturn(Optional.of(policy(null, NOW.minusDays(1), null)));
         assertThatThrownBy(() -> rules().checkCart(1L, 1)).isInstanceOf(PurchaseRuleViolationException.class)
-                .hasMessageContaining("판매 기간");
+                .hasMessage("purchase.outOfSalePeriod");
 
         given(repository.findById(2L)).willReturn(Optional.of(policy(null, null, 3)));
         rules().checkCart(2L, 3);
         assertThatThrownBy(() -> rules().checkCart(2L, 4)).isInstanceOf(PurchaseRuleViolationException.class)
-                .hasMessageContaining("3개");
+                .hasMessage("purchase.maxQuantityExceeded")
+                .satisfies(e -> assertThat(((PurchaseRuleViolationException) e).getMessageArgs()).containsExactly(3));
     }
 
     /** product.api#100 - 판매자가 정지·해지면 기간·수량과 무관하게 장바구니를 막는다. */
@@ -73,6 +74,6 @@ class PurchaseRulesTest {
     void checkCartRejectsSuspendedSeller() {
         given(productRepository.findIdsWithInactiveSeller(java.util.List.of(3L))).willReturn(java.util.List.of(3L));
         assertThatThrownBy(() -> rules().checkCart(3L, 1)).isInstanceOf(PurchaseRuleViolationException.class)
-                .hasMessageContaining("판매가 중단");
+                .hasMessage("purchase.saleSuspended");
     }
 }

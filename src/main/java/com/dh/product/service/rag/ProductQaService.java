@@ -1,5 +1,6 @@
 package com.dh.product.service.rag;
 
+import com.dh.product.config.Messages;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,11 +27,14 @@ public class ProductQaService {
     private final ProductEmbeddingService embeddingService;
     private final ProductService productService;
     private final ChatCompletionClient chatCompletionClient;
+    private final Messages messages;
 
     public ProductQaService(
             ProductEmbeddingService embeddingService,
             ProductService productService,
-            ChatCompletionClient chatCompletionClient) {
+            ChatCompletionClient chatCompletionClient,
+            Messages messages) {
+        this.messages = messages;
         this.embeddingService = embeddingService;
         this.productService = productService;
         this.chatCompletionClient = chatCompletionClient;
@@ -41,7 +45,7 @@ public class ProductQaService {
         List<ProductSummaryResponse> products = productService.getSummariesByIds(productIds);
 
         if (products.isEmpty()) {
-            return new ProductQaResponse("조건에 맞는 상품을 찾지 못했습니다.", List.of());
+            return new ProductQaResponse(messages.get("qa.noMatch"), List.of());
         }
 
         String userPrompt = buildUserPrompt(question, products);

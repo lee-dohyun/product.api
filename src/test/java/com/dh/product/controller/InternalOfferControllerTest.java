@@ -63,7 +63,7 @@ class InternalOfferControllerTest {
     @Test
     @DisplayName("파라미터 오류는 400 으로 응답한다 — 409/500 이 아니다")
     void invalidRequestMapsToBadRequest() {
-        var response = new ApiExceptionHandler()
+        var response = new ApiExceptionHandler(null)
                 .handleInvalidOfferResolveRequest(new InvalidOfferResolveRequestException("x"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
