@@ -1,7 +1,10 @@
 package com.dh.product.service;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,15 +73,30 @@ public class InventoryDeductor {
             log.info("이미 차감된 주문 - 재차감 없이 현재 잔고를 반환 (orderId={})", orderId);
             return balancesOf(items);
         }
-        return items.stream()
-                .map(item -> {
-                    Inventory inventory = getOrThrow(item.variantId());
-                    inventory.deduct(item.quantity());
-                    evictProductCache(inventory.getVariant().getProduct().getId());
-                    record(inventory, item.quantity(), orderId);
-                    return new InventoryBalanceResponse(item.variantId(), inventory.getQuantity());
-                })
-                .toList();
+        // 행 잠금을 항상 variantId 순으로 잡는다. 요청 순서대로 잡으면 같은 두 상품을 반대 순서로 담은
+        // 주문끼리 서로의 잠금을 기다리다 교착으로 한쪽이 죽는다. 응답은 요청 순서를 유지한다.
+        InventoryBalanceResponse[] balances = new InventoryBalanceResponse[items.size()];
+        IntStream.range(0, items.size()).boxed()
+                .sorted(Comparator.comparing(i -> items.get(i).variantId()))
+                .forEach(i -> balances[i] = deductAtomically(items.get(i), orderId));
+        return List.of(balances);
+    }
+
+    /**
+     * 서로 다른 주문이 같은 재고 행에 몰려도 순서대로 처리되게 조건부 UPDATE 로 뺀다(product.api#35).
+     * 엔티티의 수량은 건드리지 않는다 - 건드리면 flush 때 버전 검사가 붙은 UPDATE 가 한 번 더 나간다.
+     */
+    private InventoryBalanceResponse deductAtomically(DeductItem item, Long orderId) {
+        Inventory inventory = getOrThrow(item.variantId());
+        if (inventoryRepository.deductIfEnough(inventory.getId(), item.quantity(), LocalDateTime.now()) == 0) {
+            throw new IllegalStateException(
+                    "재고가 부족합니다: variantId=" + item.variantId() + ", 요청=" + item.quantity());
+        }
+        int remaining = inventoryRepository.findQuantityById(inventory.getId());
+        evictProductCache(inventory.getVariant().getProduct().getId());
+        inventoryTransactionRepository.save(new InventoryTransaction(
+                inventory, InventoryTransactionType.ORDER_DEDUCT, -item.quantity(), remaining, orderId, null));
+        return new InventoryBalanceResponse(item.variantId(), remaining);
     }
 
     @Transactional
@@ -144,10 +162,5 @@ public class InventoryDeductor {
     private Inventory getOrThrow(Long variantId) {
         return inventoryRepository.findByVariantId(variantId)
                 .orElseThrow(() -> new NoSuchElementException("inventory not found for variant: " + variantId));
-    }
-
-    private void record(Inventory inventory, int deducted, Long orderId) {
-        inventoryTransactionRepository.save(new InventoryTransaction(
-                inventory, InventoryTransactionType.ORDER_DEDUCT, -deducted, orderId, null));
     }
 }
