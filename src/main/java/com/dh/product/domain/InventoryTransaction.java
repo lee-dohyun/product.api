@@ -69,10 +69,20 @@ public class InventoryTransaction {
 
     public InventoryTransaction(
             Inventory inventory, InventoryTransactionType type, int quantityChange, Long orderId, String reason) {
+        this(inventory, type, quantityChange, inventory.getQuantity(), orderId, reason);
+    }
+
+    /**
+     * 잔고를 직접 받는 생성자 - 벌크 UPDATE 로 수량을 바꾼 경로용이다(product.api#35). 그 경로에서는
+     * {@code inventory.getQuantity()} 가 변경 전 값이라 위 생성자를 쓰면 이력의 잔고가 틀린다.
+     */
+    public InventoryTransaction(
+            Inventory inventory, InventoryTransactionType type, int quantityChange, int balanceAfter,
+            Long orderId, String reason) {
         this.inventory = inventory;
         this.type = type;
         this.quantityChange = quantityChange;
-        this.balanceAfter = inventory.getQuantity();
+        this.balanceAfter = balanceAfter;
         this.orderId = orderId;
         this.reason = reason;
     }

@@ -5,6 +5,7 @@ import java.util.NoSuchElementException;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 
 import com.dh.product.service.InvalidProductPolicyException;
@@ -60,6 +61,15 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<String> handleConflict(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+    }
+
+    /**
+     * 주문 차감은 낙관적 락을 쓰지 않지만(product.api#35) 재고 복원과 관리자 수동 조정은 여전히
+     * {@code @Version} 에 기댄다. 그 경로가 차감과 겹쳐 지면 다시 보내면 되는 요청이므로 500 이 아니라 409 다.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<String> handleOptimisticLock(OptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("요청이 동시에 처리되어 재시도가 필요합니다.");
     }
 
     /**
