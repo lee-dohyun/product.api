@@ -2,6 +2,8 @@ package com.dh.product.controller;
 
 import java.util.NoSuchElementException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,6 +23,8 @@ import com.dh.product.service.rag.RagUnavailableException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     // Messages 헬퍼 대신 MessageSource 를 직접 받는다 — @WebMvcTest 슬라이스는 @Component 인 Messages 를
     // 싣지 않아 컨텍스트가 안 뜨지만, MessageSource 는 자동설정이라 슬라이스에도 항상 있다.
@@ -98,8 +102,14 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
     }
 
+    /**
+     * 상품 Q&A 를 쓸 수 없을 때. 예외 메시지는 운영자용 원인(키 미등록 등)이라 로그에만 남기고,
+     * 본문에는 요청 로케일의 안내 문구를 싣는다(gateway#68) — 내부 설정 이름을 응답에 드러내지 않는다.
+     */
     @ExceptionHandler(RagUnavailableException.class)
     public ResponseEntity<String> handleRagUnavailable(RagUnavailableException e) {
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(e.getMessage());
+        log.warn("상품 Q&A 사용 불가: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(messageSource.getMessage("qa.unavailable", null, LocaleContextHolder.getLocale()));
     }
 }
