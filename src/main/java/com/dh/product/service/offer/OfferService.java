@@ -12,12 +12,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dh.product.domain.Inventory;
 import com.dh.product.domain.Offer;
 import com.dh.product.domain.OfferStatus;
 import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
+import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.OfferRepository;
 import com.dh.product.service.PurchaseRules;
 
@@ -28,12 +30,14 @@ public class OfferService {
     private final OfferRepository offerRepository;
     private final FeaturedOfferSelector featuredOfferSelector;
     private final PurchaseRules purchaseRules;
+    private final InventoryRepository inventoryRepository;
 
     public OfferService(OfferRepository offerRepository, FeaturedOfferSelector featuredOfferSelector,
-            PurchaseRules purchaseRules) {
+            PurchaseRules purchaseRules, InventoryRepository inventoryRepository) {
         this.offerRepository = offerRepository;
         this.featuredOfferSelector = featuredOfferSelector;
         this.purchaseRules = purchaseRules;
+        this.inventoryRepository = inventoryRepository;
     }
 
     /**
@@ -185,12 +189,19 @@ public class OfferService {
                 .toList();
         Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(productIds);
         Set<Long> suspended = purchaseRules.saleSuspendedOf(productIds);
+        // 재고도 variant 묶음으로 한 번만 읽는다. 원본 테이블을 직접 읽는다 - 상품 상세 캐시의 재고는
+        // 표시용이라 주문 판단에 쓰지 않는다(gateway Wiki ADR-0006).
+        List<Long> variantIds = offers.stream().map(o -> o.getVariant().getId()).distinct().toList();
+        Map<Long, Integer> stockByVariant = inventoryRepository.findByVariantIdIn(variantIds).stream()
+                .collect(Collectors.toMap(i -> i.getVariant().getId(), Inventory::getQuantity));
         return offers.stream()
-                .map(o -> toResolveResponse(o, policies.get(o.getVariant().getProduct().getId()), suspended))
+                .map(o -> toResolveResponse(o, policies.get(o.getVariant().getProduct().getId()), suspended,
+                        stockByVariant.getOrDefault(o.getVariant().getId(), 0)))
                 .toList();
     }
 
-    private OfferResolveResponse toResolveResponse(Offer o, ProductPolicy policy, Set<Long> suspended) {
+    private OfferResolveResponse toResolveResponse(Offer o, ProductPolicy policy, Set<Long> suspended,
+            int stockQuantity) {
         return new OfferResolveResponse(
                 o.getId(),
                 o.getVariant().getId(),
@@ -205,6 +216,7 @@ public class OfferService {
                 // 오퍼 상태 + variants/resolve 와 동일한 구매 가능 판정. 판정식은 PurchaseRules 에만 둔다.
                 o.getStatus() == OfferStatus.ACTIVE
                         && purchaseRules.purchasable(o.getVariant(), policy, suspended),
-                purchaseRules.maxPurchaseQuantity(policy));
+                purchaseRules.maxPurchaseQuantity(policy),
+                stockQuantity);
     }
 }

@@ -28,6 +28,12 @@ public class OfferDtos {
              */
             boolean active,
             /** 상품별 1회 최대 구매 수량. 제한 없으면 null (product.api#97). */
-            Integer maxPurchaseQuantity) {
+            Integer maxPurchaseQuantity,
+            /**
+             * 이 variant 의 현재 재고(order.api#47). 주문 생성 때 "지금 살 수 있는 수량인가"를 미리 거르는
+             * <b>조회용</b> 값이다 — 캐시를 거치지 않고 읽지만 예약이 아니므로, 실제 판정은 결제 때의
+             * 차감({@code /internal/inventory/deduct})이 한다. 재고 행이 없으면 0.
+             */
+            int stockQuantity) {
     }
 }
