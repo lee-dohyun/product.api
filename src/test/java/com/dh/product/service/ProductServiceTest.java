@@ -85,7 +85,7 @@ class ProductServiceTest {
         // PurchaseRules 는 목 리포지토리 위의 실제 구현이다 - 이 두 테스트가 검증하는 목록 경로는 구매
         // 가능 판정을 타지 않지만(가격·재고만 본다) 생성자가 요구하므로 동작하는 것을 넣어 준다(product.api#108).
         OfferService offerService = new OfferService(offerRepository, new LowestPriceFeaturedOfferSelector(),
-                new PurchaseRules(productPolicyRepository, productRepository));
+                new PurchaseRules(productPolicyRepository, productRepository), inventoryRepository);
         productService = new ProductService(
                 productRepository, categoryRepository, productVariantRepository,
                 productOptionRepository, productOptionValueRepository, inventoryRepository,
