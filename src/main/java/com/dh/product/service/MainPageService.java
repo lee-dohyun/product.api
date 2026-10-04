@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 
 import com.dh.product.config.CacheNames;
+import com.dh.product.config.SingleFlight;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class MainPageService {
     private final InventoryRepository inventoryRepository;
     private final BannerRepository bannerRepository;
     private final OfferService offerService;
+    private final SingleFlight singleFlight;
 
     public MainPageService(
             ProductRepository productRepository,
@@ -53,14 +55,20 @@ public class MainPageService {
             ProductVariantRepository productVariantRepository,
             InventoryRepository inventoryRepository,
             BannerRepository bannerRepository,
-            OfferService offerService) {
+            OfferService offerService,
+            SingleFlight singleFlight) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.productVariantRepository = productVariantRepository;
         this.inventoryRepository = inventoryRepository;
         this.bannerRepository = bannerRepository;
         this.offerService = offerService;
+        this.singleFlight = singleFlight;
     }
+
+    // 이 클래스의 @Cacheable 메서드는 본문을 SingleFlight 로 감싼다(posselect-shell#27). 캐시가 비는 순간
+    // 동시에 들어온 요청이 전부 DB 로 내려가지 않고 한 요청만 읽는다. 캐시 히트 경로는 건드리지 않는다.
+    // @Cacheable(sync = true) 를 쓰지 않는 이유는 SingleFlight 주석 참고.
 
     /**
      * 베스트 상품 목록 반환.
@@ -70,14 +78,18 @@ public class MainPageService {
      */
     @Cacheable(cacheNames = CacheNames.MAIN_BEST)
     public List<ProductSummaryResponse> getBestProducts(int limit) {
-        List<Product> products = productRepository.findByStatusOrderByIdDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
-        return toSummaryResponses(products);
+        return singleFlight.load(CacheNames.MAIN_BEST + ":" + limit, () -> {
+            List<Product> products = productRepository.findByStatusOrderByIdDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
+            return toSummaryResponses(products);
+        });
     }
 
     @Cacheable(cacheNames = CacheNames.MAIN_NEW)
     public List<ProductSummaryResponse> getNewProducts(int limit) {
-        List<Product> products = productRepository.findByStatusOrderByCreatedAtDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
-        return toSummaryResponses(products);
+        return singleFlight.load(CacheNames.MAIN_NEW + ":" + limit, () -> {
+            List<Product> products = productRepository.findByStatusOrderByCreatedAtDesc(ProductStatus.LIVE, PageRequest.of(0, limit));
+            return toSummaryResponses(products);
+        });
     }
 
     /** 카테고리별 영역에서 대분류 하나당 보여줄 상품 수. */
@@ -96,6 +108,10 @@ public class MainPageService {
      */
     @Cacheable(cacheNames = CacheNames.MAIN_BY_CATEGORY)
     public Map<String, List<ProductSummaryResponse>> getProductsByCategory() {
+        return singleFlight.load(CacheNames.MAIN_BY_CATEGORY, this::loadProductsByCategory);
+    }
+
+    private Map<String, List<ProductSummaryResponse>> loadProductsByCategory() {
         // findAll() 이 아니라 정렬 조회를 쓴다. 아래 picked 는 LinkedHashMap 이라 순회 순서가
         // 그대로 응답 맵의 키 순서가 되고, store.front 메인 페이지의 카테고리 섹션 순서가 된다 -
         // 정렬이 없으면 그 순서가 힙 순서(비결정적)를 따라간다.
@@ -162,6 +178,10 @@ public class MainPageService {
      */
     @Cacheable(cacheNames = CacheNames.MAIN_BANNERS)
     public List<BannerResponse> getBanners() {
+        return singleFlight.load(CacheNames.MAIN_BANNERS, this::loadBanners);
+    }
+
+    private List<BannerResponse> loadBanners() {
         log.info("[MainPageService/getBanners] 메인 페이지 배너 DB 조회 요청");
         List<Banner> banners = bannerRepository.findAllByIsActiveTrueOrderBySortOrderAsc();
         return banners.stream()

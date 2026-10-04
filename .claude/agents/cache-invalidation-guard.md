@@ -88,6 +88,11 @@ Two things people used to assume that are now wrong (both were true once, both g
    or `ProductSummaryResponse` while Redis still holds entries serialized under the old shape causes
    deserialization failures or silently missing fields after deploy. Bump the cache name or flush the
    affected keys as part of the release.
+7. **Stampede protection is `SingleFlight`, not `sync = true`.** The main-page `@Cacheable` methods wrap their
+   body in `SingleFlight.load(key, loader)` so concurrent misses read the DB once (posselect-shell#27).
+   `@Cacheable(sync = true)` is a no-op with the non-locking Redis writer this app uses, and the locking writer
+   takes a Redis lock on every cache *hit*. Any argument that changes the result (e.g. `limit`) must be part of
+   the SingleFlight key, or callers receive each other's results. `product:{id}` is deliberately not wrapped.
 
 ## How to verify
 

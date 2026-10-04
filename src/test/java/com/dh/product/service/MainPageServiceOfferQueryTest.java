@@ -73,7 +73,7 @@ class MainPageServiceOfferQueryTest {
                 new PurchaseRules(productPolicyRepository, productRepository));
         mainPageService = new MainPageService(
                 productRepository, categoryRepository, productVariantRepository,
-                inventoryRepository, bannerRepository, offerService);
+                inventoryRepository, bannerRepository, offerService, new com.dh.product.config.SingleFlight());
     }
 
     @Test
