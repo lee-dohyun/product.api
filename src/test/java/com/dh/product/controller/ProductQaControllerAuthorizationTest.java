@@ -10,7 +10,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.cache.test.autoconfigure.AutoConfigureCache;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,6 +27,9 @@ import com.dh.product.service.rag.ProductQaService;
  * 인가는 인터셉터 등록(WebConfig) 레벨의 문제라 인터셉터 단위 테스트로는 잡히지 않는다 —
  * 실제 MVC 배선을 통과시켜야 한다. 관리 경로가 같이 열려버리는 반대 방향의 회귀도 함께 막는다.
  */
+// Boot 4 부터 @WebMvcTest 가 캐시 자동 설정을 끌어오지 않는다 - Application 의 @EnableCaching 이
+// CacheManager 를 요구하므로 테스트용(no-op) 캐시를 명시한다(gateway#348).
+@AutoConfigureCache
 @WebMvcTest({ ProductQaController.class, CategoryController.class })
 class ProductQaControllerAuthorizationTest {
 
