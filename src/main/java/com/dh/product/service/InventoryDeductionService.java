@@ -56,6 +56,11 @@ public class InventoryDeductionService {
         try {
             return deductor.deductForClaimOnce(orderId, claimKey, items);
         } catch (DataIntegrityViolationException e) {
+            if (!isClaimKeyDuplicate(e)) {
+                // 다른 제약 위반(예: 운영에만 있던 유형 CHECK)을 "이미 처리됨"으로 바꾸면 차감이 안 됐는데 성공이 나간다
+                // — 2026-10-14 운영에서 실제로 그랬다. 클레임 키 유니크 충돌만 중복 요청으로 본다.
+                throw e;
+            }
             log.info("동시 중복 교환 차감 요청을 유니크 제약으로 차단 (orderId={}, claimKey={})", orderId, claimKey);
             return deductor.currentBalances(items);
         }
@@ -68,6 +73,9 @@ public class InventoryDeductionService {
         try {
             return deductor.restorePartialOnce(orderId, claimKey, items);
         } catch (DataIntegrityViolationException e) {
+            if (!isClaimKeyDuplicate(e)) {
+                throw e;
+            }
             log.info("동시 중복 부분 복원 요청을 유니크 제약으로 차단 (orderId={}, claimKey={})", orderId, claimKey);
             return deductor.currentBalancesForRestore(items.stream()
                     .map(i -> new com.dh.product.dto.InventoryDtos.RestoreItem(i.variantId(), i.quantity()))
@@ -83,5 +91,15 @@ public class InventoryDeductionService {
             log.info("동시 중복 복원 요청을 유니크 제약으로 차단 (orderId={})", orderId);
             return deductor.currentBalancesForRestore(items);
         }
+    }
+
+    /** V25 의 (claim_key, inventory_id) 유니크 인덱스 충돌인가 — 같은 클레임의 동시 재시도만 이걸로 막힌다. */
+    static boolean isClaimKeyDuplicate(DataIntegrityViolationException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t.getMessage() != null && t.getMessage().contains("uq_inventory_transactions_claim_restore")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
