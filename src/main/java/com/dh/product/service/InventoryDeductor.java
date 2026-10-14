@@ -202,6 +202,43 @@ public class InventoryDeductor {
         return new InventoryBalanceResponse(item.variantId(), remaining);
     }
 
+    /**
+     * 교환 발송분 차감(gateway#320). 주문 차감과 같은 원자적 조건부 UPDATE 를 쓰되, 멱등은 클레임 키로 판정한다 —
+     * 같은 키로 이미 뺀 재고는 건너뛰고, 동시에 두 번 들어온 요청은 V25 유니크 인덱스가 막는다. 하나라도 재고가
+     * 부족하면 전체가 롤백된다.
+     */
+    @Transactional
+    public List<InventoryBalanceResponse> deductForClaimOnce(Long orderId, String claimKey, List<DeductItem> items) {
+        InventoryBalanceResponse[] balances = new InventoryBalanceResponse[items.size()];
+        IntStream.range(0, items.size()).boxed()
+                .sorted(Comparator.comparing(i -> items.get(i).variantId()))
+                .forEach(i -> {
+                    DeductItem item = items.get(i);
+                    Inventory inventory = getOrThrow(item.variantId());
+                    Integer already = jdbc.queryForObject("""
+                            SELECT count(*) FROM inventory_transactions
+                             WHERE claim_key = ? AND inventory_id = ? AND type = 'EXCHANGE_DEDUCT'
+                            """, Integer.class, claimKey, inventory.getId());
+                    if (already != null && already > 0) {
+                        balances[i] = new InventoryBalanceResponse(item.variantId(),
+                                inventoryRepository.findQuantityById(inventory.getId()));
+                        return;
+                    }
+                    if (inventoryRepository.deductIfEnough(inventory.getId(), item.quantity(), LocalDateTime.now()) == 0) {
+                        throw new IllegalStateException(
+                                "재고가 부족합니다: variantId=" + item.variantId() + ", 요청=" + item.quantity());
+                    }
+                    int remaining = inventoryRepository.findQuantityById(inventory.getId());
+                    evictProductCache(inventory.getVariant().getProduct().getId());
+                    InventoryTransaction tx = new InventoryTransaction(
+                            inventory, InventoryTransactionType.EXCHANGE_DEDUCT, -item.quantity(), remaining, orderId, null);
+                    tx.setClaimKey(claimKey);
+                    inventoryTransactionRepository.save(tx);
+                    balances[i] = new InventoryBalanceResponse(item.variantId(), remaining);
+                });
+        return List.of(balances);
+    }
+
     /** 차감 없이 요청 항목들의 현재 잔고만 조회한다 - 이미 처리된 주문에 응답할 때 쓴다. */
     @Transactional(readOnly = true)
     public List<InventoryBalanceResponse> currentBalances(List<DeductItem> items) {

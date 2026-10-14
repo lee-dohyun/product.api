@@ -216,4 +216,27 @@ class InventoryPartialRestoreIntegrationTest {
                 .isInstanceOf(PartialRestoreRejectedException.class);
         assertThat(committedQuantity()).isEqualTo(10);
     }
+
+    @Test
+    @DisplayName("교환 발송분 차감: 같은 클레임 키는 한 번만, 주문 차감과 별개라 같은 주문·같은 재고여도 뺀다")
+    void 교환_차감() {
+        deductionService.deductForOrder(3007L, deduct(2));
+        assertThat(committedQuantity()).isEqualTo(8);
+
+        deductionService.deductForClaim(3007L, "claim-7-out", deduct(1));
+        deductionService.deductForClaim(3007L, "claim-7-out", deduct(1));
+        assertThat(committedQuantity()).isEqualTo(7);
+
+        // 회수품 복원(부분 복원)은 주문 차감 기준이라 교환 차감과 섞이지 않는다.
+        deductionService.restorePartial(3007L, "claim-7", partial(1));
+        assertThat(committedQuantity()).isEqualTo(8);
+    }
+
+    @Test
+    @DisplayName("교환 발송분이 재고보다 많으면 거부하고 아무것도 빼지 않는다")
+    void 교환_재고_부족() {
+        assertThatThrownBy(() -> deductionService.deductForClaim(3008L, "claim-8-out", deduct(11)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(committedQuantity()).isEqualTo(10);
+    }
 }

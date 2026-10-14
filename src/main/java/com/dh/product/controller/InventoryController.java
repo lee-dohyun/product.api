@@ -32,6 +32,13 @@ public class InventoryController {
         return ResponseEntity.ok(inventoryDeductionService.deductForOrder(request.orderId(), request.items()));
     }
 
+    /** 교환 발송분 차감(gateway#320) - order.api 가 교환 승인 때 클레임 단위로 부른다. 재고 부족이면 409. */
+    @PostMapping("/deduct-claim")
+    public ResponseEntity<List<InventoryBalanceResponse>> deductForClaim(
+            @Valid @RequestBody com.dh.product.dto.InventoryDtos.ClaimDeductRequest request) {
+        return ResponseEntity.ok(inventoryDeductionService.deductForClaim(request.orderId(), request.claimKey(), request.items()));
+    }
+
     /** 상품별 부분 복원(gateway#320) - order.api 가 일부 상품 취소·반품을 확정할 때 클레임 단위로 부른다. */
     @PostMapping("/restore-partial")
     public ResponseEntity<List<InventoryBalanceResponse>> restorePartial(
