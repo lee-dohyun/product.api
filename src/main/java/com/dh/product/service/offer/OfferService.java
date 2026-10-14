@@ -20,6 +20,7 @@ import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
 import com.dh.product.dto.OfferDtos.ShippingQuoteItem;
+import com.dh.product.dto.OfferDtos.ShippingQuoteResponse;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.OfferRepository;
 import com.dh.product.service.PurchaseRules;
@@ -90,7 +91,7 @@ public class OfferService {
      * <p>요청한 오퍼가 하나라도 없으면 거부한다. 빠진 채로 계산하면 배송비가 적게 나오는데, 그 값이
      * 그대로 결제 금액이 된다 - {@link #resolveOffers} 처럼 조용히 빼 줄 수 없는 이유다.
      */
-    public BigDecimal quoteShipping(List<ShippingQuoteItem> items) {
+    public ShippingQuoteResponse quoteShipping(List<ShippingQuoteItem> items) {
         List<Long> offerIds = items.stream().map(ShippingQuoteItem::offerId).distinct().toList();
         Map<Long, Offer> offers = offerRepository.findAllByIdWithVariantAndSeller(offerIds).stream()
                 .collect(Collectors.toMap(Offer::getId, o -> o));
@@ -101,15 +102,17 @@ public class OfferService {
                 .map(o -> o.getVariant().getProduct().getId())
                 .distinct()
                 .toList());
-        return ShippingFeeCalculator.total(items.stream()
+        List<ShippingFeeCalculator.Line> lines = items.stream()
                 .map(item -> {
                     Offer offer = offers.get(item.offerId());
+                    BigDecimal unitPrice = item.unitPrice() != null ? item.unitPrice() : offer.getPrice();
                     return new ShippingFeeCalculator.Line(
                             offer.getSeller().getId(),
-                            offer.getPrice().multiply(BigDecimal.valueOf(item.quantity())),
+                            unitPrice.multiply(BigDecimal.valueOf(item.quantity())),
                             policies.get(offer.getVariant().getProduct().getId()));
                 })
-                .toList());
+                .toList();
+        return new ShippingQuoteResponse(ShippingFeeCalculator.total(lines), ShippingFeeCalculator.returnFeeTotal(lines));
     }
 
     /** SKU 하나의 대표 오퍼. 1P 에서는 후보가 1건이라 자명하다. */

@@ -79,7 +79,7 @@ class OfferShippingQuoteTest {
         given(offerRepository.findAllByIdWithVariantAndSeller(anyCollection())).willReturn(List.of(offer));
         given(productPolicyRepository.findAllById(anyCollection())).willReturn(List.of(conditional()));
 
-        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 2))))
+        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 2))).shippingFee())
                 .isEqualByComparingTo("3000");
     }
 
@@ -90,7 +90,7 @@ class OfferShippingQuoteTest {
         given(productPolicyRepository.findAllById(anyCollection())).willReturn(List.of(conditional()));
 
         assertThat(offerService.quoteShipping(List.of(
-                new ShippingQuoteItem(OFFER_ID, 2), new ShippingQuoteItem(OFFER_ID, 1))))
+                new ShippingQuoteItem(OFFER_ID, 2), new ShippingQuoteItem(OFFER_ID, 1))).shippingFee())
                 .isEqualByComparingTo("0");
         verify(productPolicyRepository, times(1)).findAllById(anyCollection());
     }
@@ -101,7 +101,7 @@ class OfferShippingQuoteTest {
         given(offerRepository.findAllByIdWithVariantAndSeller(anyCollection())).willReturn(List.of(offer));
         given(productPolicyRepository.findAllById(anyCollection())).willReturn(List.of());
 
-        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 1))))
+        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 1))).shippingFee())
                 .isEqualByComparingTo("0");
     }
 
@@ -113,6 +113,29 @@ class OfferShippingQuoteTest {
         assertThatThrownBy(() -> offerService.quoteShipping(List.of(
                 new ShippingQuoteItem(OFFER_ID, 1), new ShippingQuoteItem(999L, 1))))
                 .isInstanceOf(InvalidOfferResolveRequestException.class);
+    }
+
+    @Test
+    @DisplayName("주문 당시 단가를 주면 그 단가로 기준액을 판정한다 — 부분 반품 뒤 남은 품목 재계산(gateway#320)")
+    void usesGivenUnitPrice() {
+        given(offerRepository.findAllByIdWithVariantAndSeller(anyCollection())).willReturn(List.of(offer));
+        given(productPolicyRepository.findAllById(anyCollection())).willReturn(List.of(conditional()));
+
+        // 지금 오퍼 가격(20,000)으로는 3개 = 60,000 무료지만, 주문 당시 단가 15,000 이면 45,000 이라 유료다.
+        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 3, new BigDecimal("15000"))))
+                .shippingFee()).isEqualByComparingTo("3000");
+    }
+
+    @Test
+    @DisplayName("반품 배송비를 함께 돌려준다")
+    void returnsReturnShippingFee() {
+        ProductPolicy policy = conditional();
+        policy.setReturnShippingFee(new BigDecimal("2500"));
+        given(offerRepository.findAllByIdWithVariantAndSeller(anyCollection())).willReturn(List.of(offer));
+        given(productPolicyRepository.findAllById(anyCollection())).willReturn(List.of(policy));
+
+        assertThat(offerService.quoteShipping(List.of(new ShippingQuoteItem(OFFER_ID, 1))).returnShippingFee())
+                .isEqualByComparingTo("2500");
     }
 
     private static ProductPolicy conditional() {

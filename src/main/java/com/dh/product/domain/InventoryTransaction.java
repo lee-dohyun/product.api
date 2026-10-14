@@ -56,6 +56,14 @@ public class InventoryTransaction {
     @Column(nullable = false)
     private boolean reversed = false;
 
+    /** ORDER_DEDUCT 행 전용 - 부분 복원으로 이미 되돌린 수량(gateway#320). 장부 갱신은 SQL 로만 한다. */
+    @Column(name = "restored_quantity", nullable = false)
+    private int restoredQuantity = 0;
+
+    /** 부분 복원(ORDER_RESTORE) 행의 멱등 키 - order.api 클레임 식별자(gateway#320). 그 밖의 행은 null. */
+    @Column(name = "claim_key", length = 64)
+    private String claimKey;
+
     @Column(length = 200)
     private String reason;
 

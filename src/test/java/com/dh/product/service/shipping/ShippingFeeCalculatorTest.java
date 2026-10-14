@@ -95,6 +95,22 @@ class ShippingFeeCalculatorTest {
                 .isEqualByComparingTo("0");
     }
 
+    @Test
+    @DisplayName("반품 배송비: 판매자별 최댓값의 합, 정책·금액이 없으면 0원 (gateway#320)")
+    void returnFeeTotal() {
+        ProductPolicy a = policy(ShippingFeeType.PAID, "3000", null);
+        a.setReturnShippingFee(new BigDecimal("2500"));
+        ProductPolicy b = policy(ShippingFeeType.PAID, "3000", null);
+        b.setReturnShippingFee(new BigDecimal("4000"));
+        ProductPolicy c = policy(ShippingFeeType.PAID, "3000", null);
+        c.setReturnShippingFee(new BigDecimal("3000"));
+
+        assertThat(ShippingFeeCalculator.returnFeeTotal(List.of(
+                line(SELLER_A, "1000", a), line(SELLER_A, "1000", b), line(SELLER_B, "1000", c),
+                line(SELLER_B, "1000", null)))).isEqualByComparingTo("7000");
+        assertThat(ShippingFeeCalculator.returnFeeTotal(List.of(line(SELLER_A, "1000", null)))).isEqualByComparingTo("0");
+    }
+
     private static Line line(long sellerId, String amount, ProductPolicy policy) {
         return new Line(sellerId, new BigDecimal(amount), policy);
     }

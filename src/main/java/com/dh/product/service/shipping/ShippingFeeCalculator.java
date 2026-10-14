@@ -51,6 +51,20 @@ public final class ShippingFeeCalculator {
         return total;
     }
 
+    /**
+     * 반품 배송비(편도) 합계(gateway#320) - 단순 변심 반품의 환불액에서 뺀다. 배송비와 같은 묶음 규칙을 쓴다:
+     * 판매자별로 1회, 그 판매자 품목의 정책 중 가장 높은 금액. 정책이나 금액이 없으면 0원이다(지어내지 않는다).
+     */
+    public static BigDecimal returnFeeTotal(List<Line> lines) {
+        Map<Long, BigDecimal> bySeller = new LinkedHashMap<>();
+        for (Line line : lines) {
+            BigDecimal fee = line.policy() == null || line.policy().getReturnShippingFee() == null
+                    ? BigDecimal.ZERO : line.policy().getReturnShippingFee();
+            bySeller.merge(line.sellerId(), fee, BigDecimal::max);
+        }
+        return bySeller.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     private static BigDecimal feeOf(ProductPolicy policy, BigDecimal sellerSubtotal) {
         if (policy == null || policy.getShippingFeeType() == null || policy.getShippingFee() == null) {
             return BigDecimal.ZERO;

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -50,10 +51,23 @@ public class OfferDtos {
     public record ShippingQuoteRequest(@NotEmpty @Valid List<ShippingQuoteItem> items) {
     }
 
-    public record ShippingQuoteItem(@NotNull Long offerId, @NotNull @Min(1) Integer quantity) {
+    /**
+     * {@code unitPrice} 는 선택이다(gateway#320). 비우면 지금 오퍼 가격으로 계산하고(주문 생성), 채우면 그 단가로
+     * 무료배송 기준액을 판정한다 — 부분 취소·반품 때 남은 품목의 배송비를 <b>주문 당시 가격</b>으로 다시 계산하려는
+     * 것이다. 내부망 전용 경로라 이 값을 받아도 고객이 금액을 조작할 수 없다.
+     */
+    public record ShippingQuoteItem(@NotNull Long offerId, @NotNull @Min(1) Integer quantity,
+            @DecimalMin("0") BigDecimal unitPrice) {
+
+        public ShippingQuoteItem(Long offerId, Integer quantity) {
+            this(offerId, quantity, null);
+        }
     }
 
-    /** 주문 전체의 배송비(판매자별 묶음 합계). 계산 규칙은 {@code ShippingFeeCalculator}. */
-    public record ShippingQuoteResponse(BigDecimal shippingFee) {
+    /**
+     * 배송비(판매자별 묶음 합계)와 반품 배송비(편도, 판매자별 최댓값 합계 — gateway#320). 계산 규칙은
+     * {@code ShippingFeeCalculator}.
+     */
+    public record ShippingQuoteResponse(BigDecimal shippingFee, BigDecimal returnShippingFee) {
     }
 }
