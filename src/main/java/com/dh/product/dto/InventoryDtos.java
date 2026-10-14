@@ -39,6 +39,13 @@ public class InventoryDtos {
             @NotEmpty @Valid List<PartialRestoreItem> items) {
     }
 
+    /** 교환 발송분 차감(gateway#320). {@code claimKey} 가 같으면 한 번만 뺀다. 재고가 부족하면 409. */
+    public record ClaimDeductRequest(
+            @NotNull Long orderId,
+            @NotBlank @Size(max = 64) String claimKey,
+            @NotEmpty @Valid List<DeductItem> items) {
+    }
+
     public record RestoreRequest(
             @NotNull Long orderId,
             @NotEmpty @Valid List<RestoreItem> items) {

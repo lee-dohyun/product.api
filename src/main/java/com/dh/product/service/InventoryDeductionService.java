@@ -50,6 +50,17 @@ public class InventoryDeductionService {
         }
     }
 
+    /** 교환 발송분 차감(gateway#320). 같은 클레임의 동시 재시도가 V25 유니크 인덱스에 걸리면 성공으로 돌려준다. */
+    @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
+    public List<InventoryBalanceResponse> deductForClaim(Long orderId, String claimKey, List<DeductItem> items) {
+        try {
+            return deductor.deductForClaimOnce(orderId, claimKey, items);
+        } catch (DataIntegrityViolationException e) {
+            log.info("동시 중복 교환 차감 요청을 유니크 제약으로 차단 (orderId={}, claimKey={})", orderId, claimKey);
+            return deductor.currentBalances(items);
+        }
+    }
+
     /** 상품별 부분 복원(gateway#320). 같은 클레임의 동시 재시도가 V25 유니크 인덱스에 걸리면 성공으로 돌려준다. */
     @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
     public List<InventoryBalanceResponse> restorePartial(Long orderId, String claimKey,
