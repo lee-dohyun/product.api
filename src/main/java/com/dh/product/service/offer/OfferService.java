@@ -19,9 +19,11 @@ import com.dh.product.domain.Product;
 import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
+import com.dh.product.dto.OfferDtos.ShippingQuoteItem;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.OfferRepository;
 import com.dh.product.service.PurchaseRules;
+import com.dh.product.service.shipping.ShippingFeeCalculator;
 
 @Service
 @Transactional(readOnly = true)
@@ -79,6 +81,35 @@ public class OfferService {
                 .flatMap(Optional::stream)
                 .toList();
         return toResolveResponses(featured);
+    }
+
+    /**
+     * 확정된 오퍼와 수량으로 주문 전체의 배송비를 계산한다(gateway#322). 규칙은
+     * {@link ShippingFeeCalculator} 하나에만 있고, 여기서는 그 입력(판매자·금액·정책)을 모을 뿐이다.
+     *
+     * <p>요청한 오퍼가 하나라도 없으면 거부한다. 빠진 채로 계산하면 배송비가 적게 나오는데, 그 값이
+     * 그대로 결제 금액이 된다 - {@link #resolveOffers} 처럼 조용히 빼 줄 수 없는 이유다.
+     */
+    public BigDecimal quoteShipping(List<ShippingQuoteItem> items) {
+        List<Long> offerIds = items.stream().map(ShippingQuoteItem::offerId).distinct().toList();
+        Map<Long, Offer> offers = offerRepository.findAllByIdWithVariantAndSeller(offerIds).stream()
+                .collect(Collectors.toMap(Offer::getId, o -> o));
+        if (offers.size() != offerIds.size()) {
+            throw new InvalidOfferResolveRequestException("존재하지 않는 오퍼가 포함돼 있다");
+        }
+        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(offers.values().stream()
+                .map(o -> o.getVariant().getProduct().getId())
+                .distinct()
+                .toList());
+        return ShippingFeeCalculator.total(items.stream()
+                .map(item -> {
+                    Offer offer = offers.get(item.offerId());
+                    return new ShippingFeeCalculator.Line(
+                            offer.getSeller().getId(),
+                            offer.getPrice().multiply(BigDecimal.valueOf(item.quantity())),
+                            policies.get(offer.getVariant().getProduct().getId()));
+                })
+                .toList());
     }
 
     /** SKU 하나의 대표 오퍼. 1P 에서는 후보가 1건이라 자명하다. */

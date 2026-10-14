@@ -24,8 +24,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import com.dh.product.domain.Product;
+import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductStatus;
 import com.dh.product.domain.ProductVariant;
+import com.dh.product.domain.Seller;
+import com.dh.product.domain.ShippingFeeType;
 import com.dh.product.dto.CartDtos.CartResponse;
 import com.dh.product.repository.ProductVariantRepository;
 
@@ -81,6 +84,7 @@ class CartServiceTest {
         product.setName("Test Product");
         product.setDescription("Desc");
         product.setStatus(ProductStatus.LIVE);
+        product.setSeller(seller());
 
         ProductVariant variant = new ProductVariant(product, "Opt1", BigDecimal.valueOf(100));
         org.springframework.test.util.ReflectionTestUtils.setField(variant, "id", 1L);
@@ -137,6 +141,7 @@ class CartServiceTest {
         product.setName("Product2");
         product.setDescription("Desc");
         product.setStatus(ProductStatus.LIVE);
+        product.setSeller(seller());
 
         ProductVariant variant2 = new ProductVariant(product, "Opt2", BigDecimal.valueOf(50));
         org.springframework.test.util.ReflectionTestUtils.setField(variant2, "id", 2L);
@@ -165,6 +170,7 @@ class CartServiceTest {
     void addItem_RejectedByPurchaseRules_DoesNotWriteCart() {
         Product product = new Product();
         product.setStatus(ProductStatus.LIVE);
+        product.setSeller(seller());
         org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 100L);
         ProductVariant v1 = new ProductVariant(product, "S", BigDecimal.valueOf(100));
         ProductVariant v2 = new ProductVariant(product, "M", BigDecimal.valueOf(100));
@@ -179,5 +185,37 @@ class CartServiceTest {
         assertThatThrownBy(() -> cartService.addItem("user1", 2L, 1))
                 .isInstanceOf(PurchaseRuleViolationException.class);
         verify(valueOperations, org.mockito.Mockito.never()).set(anyString(), anyString(), any());
+    }
+
+    /** gateway#322 - 장바구니 배송비는 주문과 같은 계산기로, 상품 판매 정책에서 나온다. */
+    @Test
+    void getCart_ReportsShippingFeeFromProductPolicy_SeparatelyFromItemTotal() {
+        given(valueOperations.get("cart:user1")).willReturn("{\"1\":2}");
+
+        Product product = new Product();
+        product.setName("유료배송 상품");
+        product.setStatus(ProductStatus.LIVE);
+        product.setSeller(seller());
+        ProductVariant variant = new ProductVariant(product, "Opt1", BigDecimal.valueOf(10000));
+        org.springframework.test.util.ReflectionTestUtils.setField(variant, "id", 1L);
+        org.springframework.test.util.ReflectionTestUtils.setField(product, "id", 100L);
+        given(productVariantRepository.findAllById(Set.of(1L))).willReturn(List.of(variant));
+
+        ProductPolicy policy = new ProductPolicy(100L);
+        policy.setShippingFeeType(ShippingFeeType.CONDITIONAL);
+        policy.setShippingFee(BigDecimal.valueOf(3000));
+        policy.setFreeShippingThreshold(BigDecimal.valueOf(50000));
+        given(purchaseRules.policiesOf(List.of(100L))).willReturn(java.util.Map.of(100L, policy));
+
+        CartResponse response = cartService.getCart("user1");
+
+        assertThat(response.totalPrice()).isEqualByComparingTo(BigDecimal.valueOf(20000));
+        assertThat(response.shippingFee()).isEqualByComparingTo(BigDecimal.valueOf(3000));
+    }
+
+    private static Seller seller() {
+        Seller seller = new Seller();
+        org.springframework.test.util.ReflectionTestUtils.setField(seller, "id", 1L);
+        return seller;
     }
 }
