@@ -58,4 +58,16 @@ class InventoryDeductionServiceTest {
         assertThat(service.deductForOrder(ORDER_ID, items)).isEqualTo(balances);
         verify(deductor, never()).currentBalances(any());
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("클레임 키 유니크 충돌만 중복 요청으로 본다 — 다른 제약 위반을 성공으로 바꾸지 않는다 (gateway#320)")
+    void onlyClaimKeyDuplicateIsTreatedAsSuccess() {
+        var dup = new org.springframework.dao.DataIntegrityViolationException("x",
+                new RuntimeException("duplicate key value violates unique constraint \"uq_inventory_transactions_claim_restore\""));
+        var check = new org.springframework.dao.DataIntegrityViolationException("x",
+                new RuntimeException("new row violates check constraint \"inventory_transactions_type_check\""));
+
+        org.assertj.core.api.Assertions.assertThat(InventoryDeductionService.isClaimKeyDuplicate(dup)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(InventoryDeductionService.isClaimKeyDuplicate(check)).isFalse();
+    }
 }
