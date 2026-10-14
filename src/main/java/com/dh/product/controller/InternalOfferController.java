@@ -60,6 +60,6 @@ public class InternalOfferController {
      */
     @PostMapping("/shipping-quote")
     public ShippingQuoteResponse shippingQuote(@Valid @RequestBody ShippingQuoteRequest request) {
-        return new ShippingQuoteResponse(offerService.quoteShipping(request.items()));
+        return offerService.quoteShipping(request.items());
     }
 }

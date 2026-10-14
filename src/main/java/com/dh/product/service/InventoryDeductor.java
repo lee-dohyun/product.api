@@ -2,7 +2,9 @@ package com.dh.product.service;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.IntStream;
 
@@ -10,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +21,7 @@ import com.dh.product.domain.InventoryTransaction;
 import com.dh.product.domain.InventoryTransactionType;
 import com.dh.product.dto.InventoryDtos.DeductItem;
 import com.dh.product.dto.InventoryDtos.InventoryBalanceResponse;
+import com.dh.product.dto.InventoryDtos.PartialRestoreItem;
 import com.dh.product.repository.InventoryRepository;
 import com.dh.product.repository.InventoryTransactionRepository;
 
@@ -47,14 +51,17 @@ public class InventoryDeductor {
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final CacheManager cacheManager;
+    private final JdbcTemplate jdbc;
 
     public InventoryDeductor(
             InventoryRepository inventoryRepository,
             InventoryTransactionRepository inventoryTransactionRepository,
-            CacheManager cacheManager) {
+            CacheManager cacheManager,
+            JdbcTemplate jdbc) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryTransactionRepository = inventoryTransactionRepository;
         this.cacheManager = cacheManager;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -99,11 +106,27 @@ public class InventoryDeductor {
         return new InventoryBalanceResponse(item.variantId(), remaining);
     }
 
+    /**
+     * 주문 전체 복원(결제 보상·전액 환불). 되돌릴 차감을 얻은 요청만 재고를 더한다(product.api#115).
+     *
+     * <p>더하는 수량은 요청이 아니라 <b>장부</b>에서 온다(gateway#320): 차감 수량에서 부분 복원으로 이미 되돌린
+     * 수량을 뺀 만큼이다. order.api 는 주문 수량 그대로 보내므로 요청 수량을 믿으면, 일부 상품을 반품한 뒤
+     * 전액 환불이 오는 순간 그 반품분이 한 번 더 더해진다. reversed 전환과 남은 수량 읽기를 UPDATE ... RETURNING
+     * 한 문장으로 해서, 동시에 들어온 부분 복원과 엇갈려도 잠금이 풀린 뒤의 값을 본다.
+     */
     @Transactional
     public List<InventoryBalanceResponse> restoreOnce(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
-        // 되돌릴 차감을 얻은 요청만 재고를 더한다(product.api#115). 0 이면 이미 복원됐거나 차감된 적이
-        // 없는 주문이다 - 후자를 그냥 더하면 없던 재고가 생긴다.
-        if (inventoryTransactionRepository.markActiveDeductsReversed(orderId) == 0) {
+        Map<Long, Integer> remainingByInventory = new HashMap<>();
+        jdbc.query("""
+                UPDATE inventory_transactions
+                   SET reversed = TRUE
+                 WHERE order_id = ? AND type = 'ORDER_DEDUCT' AND reversed = FALSE
+                RETURNING inventory_id, (-quantity_change - restored_quantity) AS remaining
+                """, rs -> {
+            remainingByInventory.merge(rs.getLong("inventory_id"), rs.getInt("remaining"), Integer::sum);
+        }, orderId);
+        // 0 행이면 이미 복원됐거나 차감된 적이 없는 주문이다 - 후자를 그냥 더하면 없던 재고가 생긴다.
+        if (remainingByInventory.isEmpty()) {
             log.info("되돌릴 차감이 없는 주문 - 복원 없이 현재 잔고를 반환 (orderId={})", orderId);
             return items.stream()
                     .map(item -> new InventoryBalanceResponse(
@@ -116,13 +139,67 @@ public class InventoryDeductor {
         return items.stream()
                 .map(item -> {
                     Inventory inventory = getOrThrow(item.variantId());
-                    inventory.restore(item.quantity());
-                    evictProductCache(inventory.getVariant().getProduct().getId());
-                    inventoryTransactionRepository.save(new InventoryTransaction(
-                            inventory, InventoryTransactionType.ORDER_RESTORE, item.quantity(), orderId, null));
+                    int amount = remainingByInventory.getOrDefault(inventory.getId(), 0);
+                    if (amount > 0) {
+                        inventory.restore(amount);
+                        evictProductCache(inventory.getVariant().getProduct().getId());
+                        inventoryTransactionRepository.save(new InventoryTransaction(
+                                inventory, InventoryTransactionType.ORDER_RESTORE, amount, orderId, null));
+                    }
                     return new InventoryBalanceResponse(item.variantId(), inventory.getQuantity());
                 })
                 .toList();
+    }
+
+    /**
+     * 상품별 부분 복원(gateway#320) - 고객이 주문의 일부 상품만 취소·반품했을 때 그 수량만 되돌린다.
+     *
+     * <p>멱등 키는 {@code claimKey}(order.api 의 클레임)다. 같은 키로 이미 되돌린 재고는 건너뛰고, 동시에 두 번 들어와
+     * 존재 확인을 둘 다 통과한 경우는 V25 유니크 인덱스가 뒤엣것을 막는다(그 예외를 성공으로 바꾸는 건
+     * {@link InventoryDeductionService}). 상한은 조건부 UPDATE 한 문장으로 판정한다 — 되돌리지 않은 차감 행에서
+     * "이미 되돌린 수량 + 이번 수량 ≤ 뺀 수량"일 때만 갱신되고, 아니면 0 행이라 거부한다.
+     */
+    @Transactional
+    public List<InventoryBalanceResponse> restorePartialOnce(Long orderId, String claimKey,
+            List<PartialRestoreItem> items) {
+        InventoryBalanceResponse[] balances = new InventoryBalanceResponse[items.size()];
+        // 차감과 같은 이유로 잠금 순서를 variantId 순으로 고정한다(교착 방지). 응답은 요청 순서.
+        IntStream.range(0, items.size()).boxed()
+                .sorted(Comparator.comparing(i -> items.get(i).variantId()))
+                .forEach(i -> balances[i] = restorePartialLine(orderId, claimKey, items.get(i)));
+        return List.of(balances);
+    }
+
+    private InventoryBalanceResponse restorePartialLine(Long orderId, String claimKey, PartialRestoreItem item) {
+        Inventory inventory = getOrThrow(item.variantId());
+        Integer already = jdbc.queryForObject("""
+                SELECT count(*) FROM inventory_transactions
+                 WHERE claim_key = ? AND inventory_id = ? AND type = 'ORDER_RESTORE'
+                """, Integer.class, claimKey, inventory.getId());
+        if (already != null && already > 0) {
+            log.info("이미 처리한 부분 복원 - 재고를 더하지 않는다 (orderId={}, claimKey={})", orderId, claimKey);
+            return new InventoryBalanceResponse(item.variantId(), inventoryRepository.findQuantityById(inventory.getId()));
+        }
+        int updated = jdbc.update("""
+                UPDATE inventory_transactions
+                   SET restored_quantity = restored_quantity + ?
+                 WHERE id = (SELECT id FROM inventory_transactions
+                              WHERE order_id = ? AND inventory_id = ? AND type = 'ORDER_DEDUCT' AND reversed = FALSE
+                              ORDER BY id DESC LIMIT 1)
+                   AND restored_quantity + ? <= -quantity_change
+                """, item.quantity(), orderId, inventory.getId(), item.quantity());
+        if (updated == 0) {
+            throw new PartialRestoreRejectedException("되돌릴 수 있는 차감 수량을 넘었거나 차감이 없습니다: orderId="
+                    + orderId + ", variantId=" + item.variantId() + ", 요청=" + item.quantity());
+        }
+        inventoryRepository.addQuantity(inventory.getId(), item.quantity(), LocalDateTime.now());
+        int remaining = inventoryRepository.findQuantityById(inventory.getId());
+        evictProductCache(inventory.getVariant().getProduct().getId());
+        InventoryTransaction restore = new InventoryTransaction(
+                inventory, InventoryTransactionType.ORDER_RESTORE, item.quantity(), remaining, orderId, null);
+        restore.setClaimKey(claimKey);
+        inventoryTransactionRepository.save(restore);
+        return new InventoryBalanceResponse(item.variantId(), remaining);
     }
 
     /** 차감 없이 요청 항목들의 현재 잔고만 조회한다 - 이미 처리된 주문에 응답할 때 쓴다. */

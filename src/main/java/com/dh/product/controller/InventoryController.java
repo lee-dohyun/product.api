@@ -32,6 +32,13 @@ public class InventoryController {
         return ResponseEntity.ok(inventoryDeductionService.deductForOrder(request.orderId(), request.items()));
     }
 
+    /** 상품별 부분 복원(gateway#320) - order.api 가 일부 상품 취소·반품을 확정할 때 클레임 단위로 부른다. */
+    @PostMapping("/restore-partial")
+    public ResponseEntity<List<InventoryBalanceResponse>> restorePartial(
+            @Valid @RequestBody com.dh.product.dto.InventoryDtos.PartialRestoreRequest request) {
+        return ResponseEntity.ok(inventoryDeductionService.restorePartial(request.orderId(), request.claimKey(), request.items()));
+    }
+
     @PostMapping("/restore")
     public ResponseEntity<List<InventoryBalanceResponse>> restore(@Valid @RequestBody com.dh.product.dto.InventoryDtos.RestoreRequest request) {
         return ResponseEntity.ok(inventoryDeductionService.restoreForOrder(request.orderId(), request.items()));

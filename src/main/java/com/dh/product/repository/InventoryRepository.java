@@ -36,6 +36,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             + " i.updatedAt = :now where i.id = :id and i.quantity >= :amount")
     int deductIfEnough(@Param("id") Long id, @Param("amount") int amount, @Param("now") LocalDateTime now);
 
+    /** 재고를 조건 없이 원자적으로 더한다 - 부분 복원(gateway#320). 엔티티 갱신과 달리 같은 행에 몰려도 재시도가 없다. */
+    @Modifying(flushAutomatically = true)
+    @Query("update Inventory i set i.quantity = i.quantity + :amount, i.version = i.version + 1,"
+            + " i.updatedAt = :now where i.id = :id")
+    int addQuantity(@Param("id") Long id, @Param("amount") int amount, @Param("now") LocalDateTime now);
+
     /**
      * 벌크 UPDATE 뒤의 수량을 DB 에서 다시 읽는다. 엔티티로 읽으면 영속성 컨텍스트에 남아 있는
      * 차감 전 값이 나오므로 스칼라로 조회한다.

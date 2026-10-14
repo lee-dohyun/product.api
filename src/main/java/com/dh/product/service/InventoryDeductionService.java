@@ -50,6 +50,20 @@ public class InventoryDeductionService {
         }
     }
 
+    /** 상품별 부분 복원(gateway#320). 같은 클레임의 동시 재시도가 V25 유니크 인덱스에 걸리면 성공으로 돌려준다. */
+    @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
+    public List<InventoryBalanceResponse> restorePartial(Long orderId, String claimKey,
+            List<com.dh.product.dto.InventoryDtos.PartialRestoreItem> items) {
+        try {
+            return deductor.restorePartialOnce(orderId, claimKey, items);
+        } catch (DataIntegrityViolationException e) {
+            log.info("동시 중복 부분 복원 요청을 유니크 제약으로 차단 (orderId={}, claimKey={})", orderId, claimKey);
+            return deductor.currentBalancesForRestore(items.stream()
+                    .map(i -> new com.dh.product.dto.InventoryDtos.RestoreItem(i.variantId(), i.quantity()))
+                    .toList());
+        }
+    }
+
     @CacheEvict(cacheNames = { CacheNames.MAIN_BEST, CacheNames.MAIN_NEW, CacheNames.MAIN_BY_CATEGORY }, allEntries = true)
     public List<InventoryBalanceResponse> restoreForOrder(Long orderId, List<com.dh.product.dto.InventoryDtos.RestoreItem> items) {
         try {
