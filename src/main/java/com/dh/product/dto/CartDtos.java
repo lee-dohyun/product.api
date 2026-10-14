@@ -23,6 +23,10 @@ public class CartDtos {
             String thumbnailUrl) {
     }
 
-    public record CartResponse(List<CartItemResponse> items, BigDecimal totalPrice) {
+    /**
+     * {@code totalPrice} 는 상품 금액 합계이고 배송비를 포함하지 않는다. {@code shippingFee} 는 주문할 때
+     * 청구될 배송비다(gateway#322) - 주문과 같은 {@code ShippingFeeCalculator} 로 계산한다.
+     */
+    public record CartResponse(List<CartItemResponse> items, BigDecimal totalPrice, BigDecimal shippingFee) {
     }
 }

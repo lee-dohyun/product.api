@@ -3,13 +3,19 @@ package com.dh.product.controller;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dh.product.dto.OfferDtos.OfferResolveResponse;
+import com.dh.product.dto.OfferDtos.ShippingQuoteRequest;
+import com.dh.product.dto.OfferDtos.ShippingQuoteResponse;
 import com.dh.product.service.offer.InvalidOfferResolveRequestException;
 import com.dh.product.service.offer.OfferService;
+
+import jakarta.validation.Valid;
 
 /**
  * {@code /internal/variants/resolve} 의 후속(product.api#31). order.api 가 주문 금액을
@@ -46,5 +52,14 @@ public class InternalOfferController {
         return ids != null
                 ? offerService.resolveOffers(ids)
                 : offerService.resolveFeaturedOffersByVariant(variantIds);
+    }
+
+    /**
+     * 주문 전체의 배송비(gateway#322). order.api 가 주문을 만들 때 {@code resolve} 다음에 부른다.
+     * 조회지만 품목 목록을 본문으로 받으려고 POST 다 - 상태를 바꾸지 않는다.
+     */
+    @PostMapping("/shipping-quote")
+    public ShippingQuoteResponse shippingQuote(@Valid @RequestBody ShippingQuoteRequest request) {
+        return new ShippingQuoteResponse(offerService.quoteShipping(request.items()));
     }
 }

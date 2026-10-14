@@ -1,6 +1,12 @@
 package com.dh.product.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 public class OfferDtos {
 
@@ -35,5 +41,19 @@ public class OfferDtos {
              * 차감({@code /internal/inventory/deduct})이 한다. 재고 행이 없으면 0.
              */
             int stockQuantity) {
+    }
+
+    /**
+     * 배송비 견적 요청(gateway#322). order.api 가 {@code resolve} 로 확정한 오퍼와 수량을 그대로 보낸다 —
+     * 가격·판매자·정책은 여기서 다시 읽으므로 호출자가 금액을 실어 보낼 수 없다.
+     */
+    public record ShippingQuoteRequest(@NotEmpty @Valid List<ShippingQuoteItem> items) {
+    }
+
+    public record ShippingQuoteItem(@NotNull Long offerId, @NotNull @Min(1) Integer quantity) {
+    }
+
+    /** 주문 전체의 배송비(판매자별 묶음 합계). 계산 규칙은 {@code ShippingFeeCalculator}. */
+    public record ShippingQuoteResponse(BigDecimal shippingFee) {
     }
 }

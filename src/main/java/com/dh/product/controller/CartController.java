@@ -33,7 +33,7 @@ public class CartController {
 
     private static final String CART_COOKIE = "CART_ID";
     private static final int CART_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
-    private static final CartResponse EMPTY_CART = new CartResponse(List.of(), BigDecimal.ZERO);
+    private static final CartResponse EMPTY_CART = new CartResponse(List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
 
     private final CartService cartService;
 

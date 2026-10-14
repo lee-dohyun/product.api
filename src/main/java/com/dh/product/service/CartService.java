@@ -13,10 +13,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dh.product.domain.ProductPolicy;
 import com.dh.product.domain.ProductVariant;
 import com.dh.product.dto.CartDtos.CartItemResponse;
 import com.dh.product.dto.CartDtos.CartResponse;
 import com.dh.product.repository.ProductVariantRepository;
+import com.dh.product.service.shipping.ShippingFeeCalculator;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -116,14 +118,20 @@ public class CartService {
 
     private CartResponse toResponse(Map<Long, Integer> items) {
         if (items.isEmpty()) {
-            return new CartResponse(List.of(), BigDecimal.ZERO);
+            return new CartResponse(List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
         }
 
         Map<Long, ProductVariant> variants = productVariantRepository.findAllById(items.keySet()).stream()
                 .collect(Collectors.toMap(ProductVariant::getId, v -> v));
 
+        // 배송비 정책은 상품 묶음으로 한 번만 읽는다(product.api#72 와 같은 N+1 방지).
+        Map<Long, ProductPolicy> policies = purchaseRules.policiesOf(variants.values().stream()
+                .map(v -> v.getProduct().getId())
+                .distinct()
+                .toList());
         BigDecimal total = BigDecimal.ZERO;
         List<CartItemResponse> responses = new ArrayList<>();
+        List<ShippingFeeCalculator.Line> shippingLines = new ArrayList<>();
         for (Map.Entry<Long, Integer> entry : items.entrySet()) {
             ProductVariant variant = variants.get(entry.getKey());
             if (variant == null || !variant.getProduct().isPubliclyVisible()) {
@@ -138,8 +146,11 @@ public class CartService {
                     variant.getPrice(),
                     quantity,
                     product.getImages().isEmpty() ? null : product.getImages().get(0).getImageUrl()));
-            total = total.add(variant.getPrice().multiply(BigDecimal.valueOf(quantity)));
+            BigDecimal amount = variant.getPrice().multiply(BigDecimal.valueOf(quantity));
+            total = total.add(amount);
+            shippingLines.add(new ShippingFeeCalculator.Line(
+                    product.getSeller().getId(), amount, policies.get(product.getId())));
         }
-        return new CartResponse(responses, total);
+        return new CartResponse(responses, total, ShippingFeeCalculator.total(shippingLines));
     }
 }
