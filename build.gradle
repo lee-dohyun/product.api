@@ -37,7 +37,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	// RestClient.Builder 빈(RAG 임베딩·채팅 클라이언트가 주입받는다)도 Boot 4 에서는 별도 모듈이다.
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
-	implementation 'com.nimbusds:nimbus-jose-jwt:9.37.4'
+	implementation 'com.nimbusds:nimbus-jose-jwt:9.48'
 	// Boot 4 의 웹 계층은 Jackson 3(tools.jackson)을 쓰지만, Redis 캐시 직렬화(RedisConfig)와 장바구니·
 	// 검수 코드는 Jackson 2(com.fasterxml) ObjectMapper 를 직접 만든다. 캐시에 이미 들어 있는 값의
 	// 형식을 바꾸지 않으려고 그대로 두고, Boot 가 더는 끌어오지 않는 모듈을 명시한다(gateway#348).
