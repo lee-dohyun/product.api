@@ -22,7 +22,7 @@ jobs:
       # "Unsupported class file major version 69" 로 죽었다(2026-11-07, product.api#143 배포 실패).
       # 러너 기본값에 기대지 말고 pr-check.yml·order.api 와 같은 21 로 고정한다.
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: temurin
